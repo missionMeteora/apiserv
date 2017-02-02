@@ -7,6 +7,15 @@ import (
 	"sync"
 )
 
+// Options passed to the router
+type Options struct {
+	NoAutoCleanURL           bool // don't automatically clean URLs, not recommended
+	NoDefaultNotHandler      bool // don't use the default not found handler
+	NoDefaultPanicHandler    bool // don't use the default panic handler
+	NoPanicOnInvalidAddRoute bool // don't panic on invalid routes, return an error instead
+	NoCatchPanics            bool // don't catch panics, warning this can cause the whole app to crash rather than the handler
+}
+
 var (
 	// ErrTooManyStars is returned if there are multiple *params in the path
 	ErrTooManyStars = errors.New("too many stars")
@@ -14,6 +23,8 @@ var (
 	ErrStarNotLast = errors.New("star param must be the last part of the path")
 )
 
+// Handler is what handler looks like, duh?
+// *note* `p` is NOT safe to be used outside the handler, call p.Copy() if you need to use it.
 type Handler func(h http.ResponseWriter, req *http.Request, p Params)
 
 type node struct {
@@ -43,28 +54,25 @@ type Router struct {
 
 // New returns a new Router
 func New(opts *Options) *Router {
-	if opts == nil {
-		opts = &DefaultOptions
-	} else if opts.MaxParamsPoolSize < 1 {
-		opts.MaxParamsPoolSize = DefaultOptions.MaxParamsPoolSize
-	}
+	var r Router
 
-	r := &Router{
-		opts: *opts,
+	if opts != nil {
+		r.opts = *opts
 	}
 
 	r.paramsPool.New = func() interface{} {
 		return make(Params, 0, r.maxParams)
 	}
 
-	if !opts.NoDefaultNotHandler {
+	if !r.opts.NoDefaultNotHandler {
 		r.NotFoundHandler = http.NotFoundHandler()
 	}
 
-	if !opts.NoDefaultPanicHandler {
+	if !r.opts.NoDefaultPanicHandler {
 		r.PanicHandler = PanicHandler
 	}
-	return r
+
+	return &r
 }
 
 // AddRoute adds a Handler to the specific method and route.
@@ -179,7 +187,7 @@ func (r *Router) Match(method, path string) (handler Handler, params Params) {
 
 // ServerHTTP implements http.Handler
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	if r.opts.CatchPanics {
+	if !r.opts.NoCatchPanics {
 		defer func() {
 			if v := recover(); v != nil && r.PanicHandler != nil {
 				r.PanicHandler(w, req, v)

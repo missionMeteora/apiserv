@@ -8,6 +8,7 @@ type Param struct {
 // Params handles the named params in your url, it is *NOT* safe to be used outside of your handler.
 type Params []Param
 
+// Get returns a param by name
 func (p Params) Get(name string) string {
 	for i := range p {
 		if v := &p[i]; v.Name == name {
