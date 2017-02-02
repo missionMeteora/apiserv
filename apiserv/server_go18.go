@@ -30,7 +30,7 @@ func (s *Server) Close() error {
 }
 
 // Shutdown gracefully shutsdown all the underlying http servers.
-// You can optionally set a timeout
+// You can optionally set a timeout.
 func (s *Server) Shutdown(timeout time.Duration) error {
 	if !atomic.CompareAndSwapInt32(&s.closed, 0, 1) {
 		return errors.ErrIsClosed
@@ -38,8 +38,14 @@ func (s *Server) Shutdown(timeout time.Duration) error {
 
 	var (
 		el  errors.ErrorList
-		ctx = context.WithDeadline(context.Background(), time.Now().Add(timeout))
+		ctx = context.Background()
+
+		cancelFn func()
 	)
+
+	if timeout > 0 {
+		ctx, cancelFn = context.WithDeadline(ctx, time.Now().Add(timeout))
+	}
 
 	s.serversMux.Lock()
 	for _, srv := range s.servers {
@@ -48,6 +54,10 @@ func (s *Server) Shutdown(timeout time.Duration) error {
 	}
 	s.servers = nil
 	s.serversMux.Unlock()
+
+	if cancelFn != nil {
+		cancelFn()
+	}
 
 	return el.Err()
 }
