@@ -3,16 +3,25 @@ package apiserv
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/missionMeteora/apiv2/router"
 )
+
+var defaultOpts = &Options{
+	WriteTimeout: time.Minute,
+	ReadTimeout:  time.Minute,
+
+	MaxHeaderBytes: 16 << 10, // 16kb
+
+	Logger: log.New(os.Stderr, "APIServ: ", log.Lshortfile),
+}
 
 // Options are options used in creating the server
 type Options struct {
@@ -25,19 +34,24 @@ type Options struct {
 }
 
 // New returns a server
-func New(opts interface{}) *Server {
+func New(opts *Options) *Server {
+	if opts == nil {
+		opts = defaultOpts
+	}
+
 	srv := &Server{
-		//srv: &http.Server{},
-		r: router.New(nil),
+		opts: opts,
+		r:    router.New(opts.RouterOptions),
 	}
 
 	srv.r.PanicHandler = func(w http.ResponseWriter, req *http.Request, v interface{}) {
-		NewErrorResponse(http.StatusInternalServerError, fmt.Sprint(v)).Output(w)
+		resp := NewErrorResponse(http.StatusInternalServerError, fmt.Sprint(v))
+		resp.Output(w)
+		srv.Logf("PANIC: %v", v)
 	}
 
 	srv.r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(NewErrorResponse(http.StatusNotFound, "those damn cats stole the endpoint again."))
+		RespNotFound.Output(w)
 	})
 
 	return srv
@@ -46,9 +60,9 @@ func New(opts interface{}) *Server {
 // Server is the main server
 type Server struct {
 	r    *router.Router
-	opts Options
+	opts *Options
 
-	ctxPool sync.Pool
+	ctxPool sync.Pool // TODO
 
 	serversMux sync.Mutex
 	servers    []*http.Server
@@ -129,4 +143,11 @@ func (s *Server) SetKeepAlivesEnabled(v bool) {
 // Closed returns true if the server is already shutdown/closed
 func (s *Server) Closed() bool {
 	return atomic.LoadInt32(&s.closed) == 1
+}
+
+// Logf logs to the default server logger if set
+func (s *Server) Logf(f string, args ...interface{}) {
+	if s.opts.Logger != nil {
+		s.opts.Logger.Printf(f, args...)
+	}
 }
