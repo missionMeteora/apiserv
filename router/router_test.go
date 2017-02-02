@@ -7,8 +7,8 @@ import (
 )
 
 func TestJumpRouter(t *testing.T) {
-	r := buildMeteoraApiRouter(t, true)
-	for _, m := range meteoraApi {
+	r := buildMeteoraAPIRouter(t, true)
+	for _, m := range meteoraAPI {
 		ep := m.url
 		req, _ := http.NewRequest("GET", ep, nil)
 		r.ServeHTTP(nil, req)
@@ -35,7 +35,7 @@ func TestJumpRouterStar(t *testing.T) {
 
 func BenchmarkJumpRouter5Params(b *testing.B) {
 	req, _ := http.NewRequest("GET", "/campaignReport/:id/:cid/:start-date/:end-date/:filename", nil)
-	r := buildMeteoraApiRouter(b, false)
+	r := buildMeteoraAPIRouter(b, false)
 	b.ResetTimer()
 	b.ReportAllocs()
 	b.RunParallel(func(pb *testing.PB) {
@@ -47,7 +47,7 @@ func BenchmarkJumpRouter5Params(b *testing.B) {
 
 func BenchmarkJumpRouterStatic(b *testing.B) {
 	req, _ := http.NewRequest("GET", "/dashboard", nil)
-	r := buildMeteoraApiRouter(b, false)
+	r := buildMeteoraAPIRouter(b, false)
 	b.ResetTimer()
 	b.ReportAllocs()
 	b.RunParallel(func(pb *testing.PB) {
@@ -62,9 +62,9 @@ type errorer interface {
 	Logf(fmt string, args ...interface{})
 }
 
-func buildMeteoraApiRouter(l errorer, print bool) (r *Router) {
+func buildMeteoraAPIRouter(l errorer, print bool) (r *Router) {
 	r = New(nil)
-	for _, m := range meteoraApi {
+	for _, m := range meteoraAPI {
 		ep := m.url
 		cnt := strings.Count(ep, ":")
 		fn := func(_ http.ResponseWriter, req *http.Request, p Params) {
@@ -87,7 +87,7 @@ func buildMeteoraApiRouter(l errorer, print bool) (r *Router) {
 	return
 }
 
-var meteoraApi = [...]struct{ url string }{
+var meteoraAPI = [...]struct{ url string }{
 	// conflicts
 	{
 		"/dashboard/home",
