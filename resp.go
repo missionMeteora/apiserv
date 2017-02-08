@@ -60,7 +60,11 @@ func (r *Response) Output(ctx *Context) error {
 }
 
 // NewErrorResponse returns a new error response.
-// if you pass "-" to msg, it will automatically call http.StatusText on the code.
+// errs can be:
+// 1. string or []byte
+// 2. error
+// 3. Error / *Error
+// 4. anything else will be converted to a string using fmt.Sprintf.
 func NewErrorResponse(code int, errs ...interface{}) *Response {
 	resp := &Response{
 		Code:   code,
