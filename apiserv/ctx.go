@@ -1,10 +1,12 @@
 package apiserv
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
+	"sync"
 
-	"github.com/missionMeteora/apiv2/router"
+	"github.com/missionMeteora/apiserv/router"
 )
 
 // Context is the default context passed to handlers
@@ -15,6 +17,8 @@ type Context struct {
 	http.ResponseWriter
 
 	data map[string]interface{}
+
+	done bool
 }
 
 // Get returns a context value
@@ -27,19 +31,45 @@ func (ctx *Context) Set(key string, val interface{}) {
 	if ctx.data == nil {
 		ctx.data = make(map[string]interface{})
 	}
+
 	ctx.data[key] = val
 }
 
-// DataFromReader outputs the data from the passed reader with the specific http code and optional content-type.
-func (ctx *Context) DataFromReader(code int, contentType string, r io.Reader) (int64, error) {
+// WriteReader outputs the data from the passed reader with the specific http code and optional content-type.
+func (ctx *Context) WriteReader(code int, contentType string, r io.Reader) (int64, error) {
+	ctx.done = true
 	if contentType != "" {
-		ctx.Header().Set("content-type", contentType)
+		ctx.SetContentType(contentType)
 	}
 	ctx.WriteHeader(code)
 	return io.Copy(ctx, r)
 }
 
-// Break can be returned from a handler to break a handler chain
+// SetContentType sets the responses's content-type.
+func (ctx *Context) SetContentType(typ string) {
+	h := ctx.Header()
+	h.Set("Content-Type", typ)
+	h.Set("X-Content-Type-Options", "nosniff") // fixes IE xss exploit
+}
+
+// ContentType returns the request's content-type.
+func (ctx *Context) ContentType() string {
+	return ctx.Req.Header.Get("Content-Type")
+}
+
+// BindJSON parses the request's body as json, and closes the body.
+// Note that unlike gin.Context.Bind, this does NOT verify the fields using special tags.
+func (ctx *Context) BindJSON(out interface{}) error {
+	var (
+		body = ctx.Req.Body
+		err  = json.NewDecoder(body).Decode(out)
+	)
+	body.Close()
+	return err
+}
+
+// Break can be returned from a handler to break a handler chain.
+// It doesn't write anything to the connection.
 var Break = &Response{Code: -1}
 
 // Handler is the default server Handler
@@ -61,9 +91,16 @@ L:
 		case Break: // break means break the chain
 			break L
 		default:
-			r.Output(rw)
+			if !ctx.done {
+				r.Output(ctx)
+			}
 			break L
 		}
 	}
+}
 
+var ctxPool = sync.Pool{
+	New: func() interface{} {
+		return &Context{}
+	},
 }

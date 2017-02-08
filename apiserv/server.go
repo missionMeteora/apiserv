@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/missionMeteora/apiv2/router"
+	"github.com/missionMeteora/apiserv/router"
 )
 
 var defaultOpts = &Options{
@@ -45,14 +45,20 @@ func New(opts *Options) *Server {
 	}
 
 	srv.r.PanicHandler = func(w http.ResponseWriter, req *http.Request, v interface{}) {
-		resp := NewErrorResponse(http.StatusInternalServerError, fmt.Sprint(v))
-		resp.Output(w)
-		srv.Logf("PANIC: %v", v)
+		resp := NewErrorResponse(http.StatusInternalServerError, fmt.Sprintf("%T: %v", v, v))
+		resp.Output(&Context{
+			Req:            req,
+			ResponseWriter: w,
+		})
+		srv.Logf("PANIC (%T): %v", v, v)
 	}
 
-	srv.r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		RespNotFound.Output(w)
-	})
+	srv.r.NotFoundHandler = func(w http.ResponseWriter, req *http.Request, _ router.Params) {
+		RespNotFound.Output(&Context{
+			Req:            req,
+			ResponseWriter: w,
+		})
+	}
 
 	return srv
 }
@@ -76,19 +82,26 @@ func (s *Server) AddRoute(method, path string, handlers ...Handler) error {
 	return s.r.AddRoute(method, path, handlerChain(handlers).Serve)
 }
 
+// ServeHTTP allows using the server in custom senarios that expects an http.Handler.
+func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	s.r.ServeHTTP(w, req)
+}
+
 // Run starts the server on the specific address
 func (s *Server) Run(addr string) error {
 	srv := &http.Server{
 		Addr:           addr,
 		Handler:        s.r,
 		ReadTimeout:    s.opts.ReadTimeout,
-		WriteTimeout:   s.opts.WriteTimeout, // otherwise it'll time out on slow connections like mine
+		WriteTimeout:   s.opts.WriteTimeout,
 		MaxHeaderBytes: s.opts.MaxHeaderBytes,
 		ErrorLog:       s.opts.Logger,
 	}
+
 	s.serversMux.Lock()
 	s.servers = append(s.servers, srv)
 	s.serversMux.Unlock()
+
 	return srv.ListenAndServe()
 }
 
