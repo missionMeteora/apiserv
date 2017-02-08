@@ -81,9 +81,9 @@ func buildMeteoraAPIRouter(l errorer, print bool) (r *Router) {
 		r.GET(ep, fn)
 		r.AddRoute("OTHER", ep, fn)
 	}
-	r.NotFoundHandler = http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
+	r.NotFoundHandler = func(_ http.ResponseWriter, req *http.Request, _ Params) {
 		panic(req.URL.String())
-	})
+	}
 	return
 }
 

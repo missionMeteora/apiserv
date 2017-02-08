@@ -1,15 +1,6 @@
 package router
 
-import (
-	"log"
-	"net/http"
-)
-
-// PanicHandler is the default panic handler
-func PanicHandler(w http.ResponseWriter, req *http.Request, v interface{}) {
-	http.Error(w, "oops", 500)
-	log.Printf("panic: %v", v)
-}
+import "net/http"
 
 func redirectByMethod(w http.ResponseWriter, req *http.Request, url string) {
 	if req.Method == "GET" {

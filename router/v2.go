@@ -2,8 +2,6 @@ package router
 
 import (
 	"errors"
-	"net/http"
-	"path"
 	"sync"
 )
 
@@ -22,10 +20,6 @@ var (
 	// ErrStarNotLast is returned if *param is not the last part of the path.
 	ErrStarNotLast = errors.New("star param must be the last part of the path")
 )
-
-// Handler is what handler looks like, duh?
-// *note* `p` is NOT safe to be used outside the handler, call p.Copy() if you need to use it.
-type Handler func(h http.ResponseWriter, req *http.Request, p Params)
 
 type node struct {
 	h         Handler
@@ -47,8 +41,8 @@ type Router struct {
 	paramsPool sync.Pool
 
 	opts            Options
-	NotFoundHandler http.Handler
-	PanicHandler    func(http.ResponseWriter, *http.Request, interface{})
+	NotFoundHandler Handler
+	PanicHandler    PanicHandler
 	maxParams       int
 }
 
@@ -65,11 +59,11 @@ func New(opts *Options) *Router {
 	}
 
 	if !r.opts.NoDefaultNotHandler {
-		r.NotFoundHandler = http.NotFoundHandler()
+		r.NotFoundHandler = DefaultNotFoundHandler
 	}
 
 	if !r.opts.NoDefaultPanicHandler {
-		r.PanicHandler = PanicHandler
+		r.PanicHandler = DefaultPanicHandler
 	}
 
 	return &r
@@ -119,7 +113,6 @@ func (r *Router) DELETE(path string, h Handler) error {
 	return r.AddRoute("DELETE", path, h)
 }
 
-// TODO: fix * matching
 // Match matches a method and path to a handler
 func (r *Router) Match(method, path string) (handler Handler, params Params) {
 	m := r.getMap(method, false)
@@ -183,34 +176,6 @@ func (r *Router) Match(method, path string) (handler Handler, params Params) {
 		slashes++
 	}
 	return
-}
-
-// ServerHTTP implements http.Handler
-func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	if !r.opts.NoCatchPanics {
-		defer func() {
-			if v := recover(); v != nil && r.PanicHandler != nil {
-				r.PanicHandler(w, req, v)
-			}
-		}()
-	}
-
-	u := req.URL.EscapedPath()
-
-	if !r.opts.NoAutoCleanURL {
-		u = path.Clean(u)
-	}
-
-	if h, p := r.Match(req.Method, u); h != nil {
-		h(w, req, p)
-		r.putParams(p)
-		return
-	}
-
-	if r.NotFoundHandler != nil {
-		r.NotFoundHandler.ServeHTTP(w, req)
-	}
-
 }
 
 func (r *Router) getMap(method string, create bool) routeMap {

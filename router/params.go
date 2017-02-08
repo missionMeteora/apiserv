@@ -1,5 +1,6 @@
 package router
 
+// Param is a key/value pair
 type Param struct {
 	Name  string
 	Value string
