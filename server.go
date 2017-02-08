@@ -20,7 +20,7 @@ var defaultOpts = &Options{
 
 	MaxHeaderBytes: 16 << 10, // 16kb
 
-	Logger: log.New(os.Stderr, "APIServ: ", log.Lshortfile),
+	Logger: log.New(os.Stderr, "APIServer: ", log.Lshortfile),
 }
 
 // Options are options used in creating the server
@@ -68,8 +68,6 @@ type Server struct {
 	r    *router.Router
 	opts *Options
 
-	ctxPool sync.Pool // TODO
-
 	serversMux sync.Mutex
 	servers    []*http.Server
 
@@ -82,7 +80,27 @@ func (s *Server) AddRoute(method, path string, handlers ...Handler) error {
 	return s.r.AddRoute(method, path, handlerChain(handlers).Serve)
 }
 
-// ServeHTTP allows using the server in custom senarios that expects an http.Handler.
+// GET is an alias for AddRoute("GET", path, handlers...).
+func (s *Server) GET(path string, handlers ...Handler) error {
+	return s.AddRoute("GET", path, handlers...)
+}
+
+// PUT is an alias for AddRoute("PUT", path, handlers...).
+func (s *Server) PUT(path string, handlers ...Handler) error {
+	return s.AddRoute("PUT", path, handlers...)
+}
+
+// POST is an alias for AddRoute("POST", path, handlers...).
+func (s *Server) POST(path string, handlers ...Handler) error {
+	return s.AddRoute("POST", path, handlers...)
+}
+
+// DELETE is an alias for AddRoute("DELETE", path, handlers...).
+func (s *Server) DELETE(path string, handlers ...Handler) error {
+	return s.AddRoute("DELETE", path, handlers...)
+}
+
+// ServeHTTP allows using the server in custom scenarios that expects an http.Handler.
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	s.r.ServeHTTP(w, req)
 }

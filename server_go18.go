@@ -39,12 +39,12 @@ func (s *Server) Shutdown(timeout time.Duration) error {
 	var (
 		el  errors.ErrorList
 		ctx = context.Background()
-
-		cancelFn func()
 	)
 
 	if timeout > 0 {
+		var cancelFn func()
 		ctx, cancelFn = context.WithDeadline(ctx, time.Now().Add(timeout))
+		defer cancelFn()
 	}
 
 	s.serversMux.Lock()
@@ -54,10 +54,6 @@ func (s *Server) Shutdown(timeout time.Duration) error {
 	}
 	s.servers = nil
 	s.serversMux.Unlock()
-
-	if cancelFn != nil {
-		cancelFn()
-	}
 
 	return el.Err()
 }
