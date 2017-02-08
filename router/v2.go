@@ -114,6 +114,7 @@ func (r *Router) DELETE(path string, h Handler) error {
 }
 
 // Match matches a method and path to a handler
+// TODO optimize and maybe use []byte for Params
 func (r *Router) Match(method, path string) (handler Handler, params Params) {
 	m := r.getMap(method, false)
 	if m == nil {

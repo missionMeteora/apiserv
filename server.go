@@ -45,7 +45,7 @@ func New(opts *Options) *Server {
 	}
 
 	srv.r.PanicHandler = func(w http.ResponseWriter, req *http.Request, v interface{}) {
-		resp := NewErrorResponse(http.StatusInternalServerError, fmt.Sprintf("%T: %v", v, v))
+		resp := NewErrorResponse(http.StatusInternalServerError, fmt.Sprintf("PANIC (%T): %v", v, v))
 		resp.Output(&Context{
 			Req:            req,
 			ResponseWriter: w,
