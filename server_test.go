@@ -19,7 +19,7 @@ var testData = []struct {
 
 func TestServer(t *testing.T) {
 	var (
-		srv = New(nil)
+		srv = New(SetErrLogger(nil)) // don't need the spam with panics for the /panic handler
 		ts  = httptest.NewServer(srv)
 	)
 

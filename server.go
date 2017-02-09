@@ -14,7 +14,8 @@ import (
 	"github.com/missionMeteora/apiserv/router"
 )
 
-var defaultOpts = &Options{
+// DefaultOpts are the default options used for creating new servers.
+var DefaultOpts = options{
 	WriteTimeout: time.Minute,
 	ReadTimeout:  time.Minute,
 
@@ -23,30 +24,21 @@ var defaultOpts = &Options{
 	Logger: log.New(os.Stderr, "APIServer: ", log.Lshortfile),
 }
 
-// Options are options used in creating the server
-type Options struct {
-	ReadTimeout    time.Duration // see http.Server.ReadTimeout
-	WriteTimeout   time.Duration // see http.Server.WriteTimeout
-	MaxHeaderBytes int           // see http.Server.MaxHeaderBytes
-	Logger         *log.Logger
-
-	RouterOptions *router.Options // Additional options passed to the internal router.Router instance
-}
-
-// New returns a server
-func New(opts *Options) *Server {
-	if opts == nil {
-		opts = defaultOpts
-	}
-
+// New returns a new server with the specified options.
+func New(opts ...OptionCallback) *Server {
 	srv := &Server{
-		opts: opts,
-		r:    router.New(opts.RouterOptions),
+		opts: DefaultOpts,
 	}
+
+	for _, fn := range opts {
+		fn(&srv.opts)
+	}
+
+	srv.r = router.New(srv.opts.RouterOptions)
 
 	srv.r.PanicHandler = func(w http.ResponseWriter, req *http.Request, v interface{}) {
 		resp := NewErrorResponse(http.StatusInternalServerError, fmt.Sprintf("PANIC (%T): %v", v, v))
-		resp.Output(&Context{
+		resp.WriteToCtx(&Context{
 			Req:            req,
 			ResponseWriter: w,
 		})
@@ -54,7 +46,7 @@ func New(opts *Options) *Server {
 	}
 
 	srv.r.NotFoundHandler = func(w http.ResponseWriter, req *http.Request, _ router.Params) {
-		RespNotFound.Output(&Context{
+		RespNotFound.WriteToCtx(&Context{
 			Req:            req,
 			ResponseWriter: w,
 		})
@@ -66,7 +58,7 @@ func New(opts *Options) *Server {
 // Server is the main server
 type Server struct {
 	r    *router.Router
-	opts *Options
+	opts options
 
 	serversMux sync.Mutex
 	servers    []*http.Server

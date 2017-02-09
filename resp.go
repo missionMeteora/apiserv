@@ -1,7 +1,6 @@
 package apiserv
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 )
@@ -35,10 +34,8 @@ type Response struct {
 	Indent bool `json:"-"` // if set to true, the json encoder will output indented json.
 }
 
-// Output writes the response to a ResponseWriter
-func (r *Response) Output(ctx *Context) error {
-	ctx.SetContentType(MimeJSON)
-
+// WriteToCtx writes the response to a ResponseWriter
+func (r *Response) WriteToCtx(ctx *Context) error {
 	if r.Code == 0 {
 		if len(r.Errors) > 0 {
 			r.Code = http.StatusBadRequest
@@ -49,14 +46,7 @@ func (r *Response) Output(ctx *Context) error {
 
 	r.Success = r.Code >= http.StatusOK && r.Code < http.StatusMultipleChoices
 
-	ctx.WriteHeader(r.Code)
-
-	enc := json.NewEncoder(ctx)
-
-	if r.Indent {
-		enc.SetIndent("", "\t")
-	}
-	return enc.Encode(r)
+	return ctx.JSON(r.Code, r.Indent, r)
 }
 
 // NewErrorResponse returns a new error response.
