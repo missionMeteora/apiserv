@@ -15,6 +15,11 @@ type nodePart struct {
 	Type uint8
 }
 
+// splitPathToParts takes in a path (ex: /api/v1/someEndpoint/:id/*any) and returns:
+//	pp -> the longest part before the first param (/api/v1/someEndpoint/:)
+//	rest -> all the params (id, any)
+//	num -> number of params (probably not needed...)
+//	stars -> number of stars, basically a sanity check, if it's not 0 or 1 then it's an invalid path
 func splitPathToParts(p string) (pp string, rest []nodePart, num, stars int) {
 	for i, last := 0, 0; i < len(p); i++ {
 		c, isEnd := p[i], i == len(p)-1
