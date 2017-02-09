@@ -1,7 +1,9 @@
 package apiserv
 
 import (
+	"bytes"
 	"encoding/json"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -33,6 +35,7 @@ func TestServer(t *testing.T) {
 	srv.GET("/ping/:id", func(ctx *Context) *Response {
 		return NewResponse("pong:" + ctx.Params.Get("id"))
 	})
+	srv.GET("/s/*fp", StaticDir("./", "fp"))
 
 	defer ts.Close()
 
@@ -65,5 +68,22 @@ func TestServer(t *testing.T) {
 				}
 			}
 		}
+	}
+
+	readme, _ := ioutil.ReadFile("./router/README.md")
+	res, err := http.Get(ts.URL + "/s/router/README.md")
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	b, err := ioutil.ReadAll(res.Body)
+	res.Body.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("response header: %+v", res.Header)
+	if !bytes.Equal(readme, b) {
+		t.Fatal("files not equal")
 	}
 }

@@ -30,14 +30,13 @@ func StaticDirWithLimit(dir, paramName string, limit int) Handler {
 			defer func() { <-sem }()
 		}
 
-		err := ctx.File(filepath.Join(dir, path))
-		ctx.done = true // ctx.File only sets this on success, we need to set it here regardless.
-		if err != nil {
+		if err := ctx.File(filepath.Join(dir, path)); err != nil {
 			if os.IsNotExist(err) {
 				return RespNotFound
 			}
 			return NewErrorResponse(500, err)
 		}
+
 		return nil
 	}
 }

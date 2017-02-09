@@ -26,14 +26,20 @@ type Context struct {
 
 	data map[string]interface{}
 
+	done bool
+
 	status             int
-	done               bool
 	hijackServeContent bool
 }
 
 // Param is a shorthand for ctx.Params.Get(name).
-func (ctx *Context) Param(name string) string {
-	return ctx.Params.Get(name)
+func (ctx *Context) Param(key string) string {
+	return ctx.Params.Get(key)
+}
+
+// Query is a shorthand for ctx.Req.URL.Query().Get(key).
+func (ctx *Context) Query(key string) string {
+	return ctx.Req.URL.Query().Get(key)
 }
 
 // Get returns a context value
@@ -152,7 +158,8 @@ func (ctx *Context) JSON(code int, indent bool, v interface{}) error {
 	return enc.Encode(v)
 }
 
-// WriteHeader and Write are to implement ResponseWriter and allows ghetto hijacking of http.ServeContent errors.
+// WriteHeader and Write are to implement ResponseWriter and allows ghetto hijacking of http.ServeContent errors,
+// without them we'd end up with plain text errors, we wouldn't want that, would we?
 
 // WriteHeader implements http.ResponseWriter
 func (ctx *Context) WriteHeader(s int) {
@@ -165,13 +172,18 @@ func (ctx *Context) WriteHeader(s int) {
 
 // WriteHeader implements http.ResponseWriter
 func (ctx *Context) Write(p []byte) (int, error) {
-	ctx.done = true
 	if ctx.hijackServeContent && ctx.status >= 300 {
 		ctx.hijackServeContent = false
-		NewErrorResponse(ctx.status, p)
+		NewErrorResponse(ctx.status, p).WriteToCtx(ctx)
 		return len(p), nil
 	}
+	ctx.done = true
 	return ctx.ResponseWriter.Write(p)
+}
+
+// Status returns last value written using WriteHeader.
+func (ctx *Context) Status() int {
+	return ctx.status
 }
 
 // Done returns wither the context is marked as done or not.
