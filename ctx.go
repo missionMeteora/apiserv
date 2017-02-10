@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"sync"
 
 	"github.com/missionMeteora/apiserv/router"
 )
@@ -66,7 +65,6 @@ func (ctx *Context) WriteReader(contentType string, r io.Reader) (int64, error) 
 
 // File serves a file using http.ServeContent.
 // See http.ServeContent.
-// TODO(OneOfOne): hijack the ResponseWriter from ServeContent to handle all errors using *Response.
 func (ctx *Context) File(fp string) error {
 	f, err := os.Open(fp)
 	if err != nil {
@@ -218,10 +216,4 @@ L:
 			break L
 		}
 	}
-}
-
-var ctxPool = sync.Pool{
-	New: func() interface{} {
-		return &Context{}
-	},
 }
