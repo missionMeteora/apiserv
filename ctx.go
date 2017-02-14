@@ -55,6 +55,16 @@ func (ctx *Context) Set(key string, val interface{}) {
 	ctx.data[key] = val
 }
 
+// Redirect is a helper function for http redirect.
+// if perm is true the status code is http.StatusPermanentRedirect, otherwise http.StatusTemporaryRedirect.
+func (ctx *Context) Redirect(url string, perm bool) {
+	code := http.StatusTemporaryRedirect
+	if perm {
+		code = http.StatusPermanentRedirect
+	}
+	http.Redirect(ctx, ctx.Req, url, code)
+}
+
 // WriteReader outputs the data from the passed reader with optional content-type.
 func (ctx *Context) WriteReader(contentType string, r io.Reader) (int64, error) {
 	if contentType != "" {
