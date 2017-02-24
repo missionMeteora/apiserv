@@ -26,10 +26,10 @@ func NewResponse(data interface{}) *Response {
 
 // Response is the default standard api response
 type Response struct {
-	Code    int         `json:"code"`    // if code is not set, it defaults to 200 if error is nil otherwise 400.
-	Success bool        `json:"success"` // automatically set to true if r.Code >= 200 && r.Code < 300.
-	Data    interface{} `json:"data,omitempty"`
-	Errors  []Error     `json:"errors,omitempty"`
+	Code    int           `json:"code"`    // if code is not set, it defaults to 200 if error is nil otherwise 400.
+	Success bool          `json:"success"` // automatically set to true if r.Code >= 200 && r.Code < 300.
+	Data    interface{}   `json:"data,omitempty"`
+	Errors  []interface{} `json:"errors,omitempty"`
 
 	Indent bool `json:"-"` // if set to true, the json encoder will output indented json.
 }
@@ -54,27 +54,27 @@ func (r *Response) WriteToCtx(ctx *Context) error {
 // 1. string or []byte
 // 2. error
 // 3. Error / *Error
-// 4. anything else will be converted to a string using fmt.Sprintf.
+// 4. any other value will be used as-is
 func NewErrorResponse(code int, errs ...interface{}) *Response {
 	resp := &Response{
 		Code:   code,
-		Errors: make([]Error, len(errs)),
+		Errors: make([]interface{}, len(errs)),
 	}
 
 	for i, err := range errs {
 		switch v := err.(type) {
 		case Error:
-			resp.Errors[i] = v
+			resp.Errors[i] = &v
 		case *Error:
-			resp.Errors[i] = *v
+			resp.Errors[i] = v
 		case string:
-			resp.Errors[i].Message = v
+			resp.Errors[i] = &Error{Message: v}
 		case []byte:
-			resp.Errors[i].Message = string(v)
+			resp.Errors[i] = &Error{Message: string(v)}
 		case error:
-			resp.Errors[i].Message = v.Error()
+			resp.Errors[i] = &Error{Message: v.Error()}
 		default:
-			resp.Errors[i].Message = fmt.Sprintf("%T: %v", v, v)
+			resp.Errors[i] = v
 		}
 	}
 
