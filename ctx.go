@@ -163,6 +163,10 @@ func (ctx *Context) JSON(code int, indent bool, v interface{}) error {
 		enc.SetIndent("", "\t")
 	}
 
+	if code > 0 {
+		ctx.WriteHeader(code)
+	}
+
 	return enc.Encode(v)
 }
 
