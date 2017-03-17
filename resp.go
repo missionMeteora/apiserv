@@ -10,10 +10,13 @@ var (
 	RespNotFound   = NewErrorResponse(http.StatusNotFound, http.StatusText(http.StatusNotFound))
 	RespForbidden  = NewErrorResponse(http.StatusForbidden, http.StatusText(http.StatusForbidden))
 	RespBadRequest = NewErrorResponse(http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
+)
 
-	MimeJSON  = `application/json; charset=utf-8`
-	MimeHTML  = `text/html; charset=utf-8`
-	MimePlain = `text/plain; charset=utf-8`
+// Common mime-types
+const (
+	MimeJSON  = "application/json; charset=utf-8"
+	MimeHTML  = "text/html; charset=utf-8"
+	MimePlain = "text/plain; charset=utf-8"
 )
 
 // NewResponse returns a new success response (code 200) with the specific data
