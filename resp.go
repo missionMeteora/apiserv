@@ -1,8 +1,13 @@
 package apiserv
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
+
+	"github.com/missionMeteora/toolkit/errors"
 )
 
 // Common responses
@@ -27,14 +32,37 @@ func NewResponse(data interface{}) *Response {
 	}
 }
 
+// ReadResponse reads a response from an io.ReadCloser and closes the body.
+func ReadResponse(rc io.ReadCloser) (*Response, error) {
+	var r Response
+	if err := json.NewDecoder(rc).Decode(&r); err != nil {
+		rc.Close()
+		return nil, err
+	}
+	rc.Close()
+	return &r, nil
+}
+
 // Response is the default standard api response
 type Response struct {
-	Code    int           `json:"code"`    // if code is not set, it defaults to 200 if error is nil otherwise 400.
-	Success bool          `json:"success"` // automatically set to true if r.Code >= 200 && r.Code < 300.
-	Data    interface{}   `json:"data,omitempty"`
-	Errors  []interface{} `json:"errors,omitempty"`
+	Code    int         `json:"code"`    // if code is not set, it defaults to 200 if error is nil otherwise 400.
+	Success bool        `json:"success"` // automatically set to true if r.Code >= 200 && r.Code < 300.
+	Data    interface{} `json:"data,omitempty"`
+	Errors  []*Error    `json:"errors,omitempty"`
 
 	Indent bool `json:"-"` // if set to true, the json encoder will output indented json.
+}
+
+// ErrorList returns an errors.ErrorList of this response's errors or nil.
+func (r *Response) ErrorList() *errors.ErrorList {
+	if len(r.Errors) == 0 {
+		return nil
+	}
+	var el errors.ErrorList
+	for _, err := range r.Errors {
+		el.Push(err)
+	}
+	return &el
 }
 
 // WriteToCtx writes the response to a ResponseWriter
@@ -61,7 +89,7 @@ func (r *Response) WriteToCtx(ctx *Context) error {
 func NewErrorResponse(code int, errs ...interface{}) *Response {
 	resp := &Response{
 		Code:   code,
-		Errors: make([]interface{}, len(errs)),
+		Errors: make([]*Error, len(errs)),
 	}
 
 	for i, err := range errs {
@@ -77,7 +105,7 @@ func NewErrorResponse(code int, errs ...interface{}) *Response {
 		case error:
 			resp.Errors[i] = &Error{Message: v.Error()}
 		default:
-			resp.Errors[i] = v
+			log.Panicf("unsupported error type (%T): %v", v, v)
 		}
 	}
 
@@ -88,9 +116,17 @@ func NewErrorResponse(code int, errs ...interface{}) *Response {
 type Error struct {
 	Message   string `json:"message,omitempty"`
 	Field     string `json:"field,omitempty"`
-	IsMissing string `json:"isMissing,omitempty"`
+	IsMissing bool   `json:"isMissing,omitempty"`
 }
 
-func (e Error) Error() string {
+func (e *Error) Error() string {
+	if e.Message != "" {
+		return e.Message
+	}
+
+	if e.Field != "" && e.IsMissing {
+		return `field "` + e.Field + `" is missing`
+	}
+
 	return fmt.Sprintf("Error{Message: %q, Field: %q, IsMissing: %v}", e.Message, e.Field, e.IsMissing)
 }
