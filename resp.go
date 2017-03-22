@@ -81,35 +81,52 @@ func (r *Response) WriteToCtx(ctx *Context) error {
 }
 
 // NewErrorResponse returns a new error response.
-// errs can be:
+// each err can be:
 // 1. string or []byte
 // 2. error
 // 3. Error / *Error
-// 4. any other value will be used as-is
+// 4. another response, its Errors will be appended to the returned Response.
+// 5. if errs is empty, it will call http.StatusText(code) and set that as the error.
 func NewErrorResponse(code int, errs ...interface{}) *Response {
-	resp := &Response{
-		Code:   code,
-		Errors: make([]*Error, len(errs)),
+	if len(errs) == 0 {
+		errs = append(errs, http.StatusText(code))
 	}
 
-	for i, err := range errs {
-		switch v := err.(type) {
-		case Error:
-			resp.Errors[i] = &v
-		case *Error:
-			resp.Errors[i] = v
-		case string:
-			resp.Errors[i] = &Error{Message: v}
-		case []byte:
-			resp.Errors[i] = &Error{Message: string(v)}
-		case error:
-			resp.Errors[i] = &Error{Message: v.Error()}
-		default:
-			log.Panicf("unsupported error type (%T): %v", v, v)
+	var (
+		r = &Response{
+			Code:   code,
+			Errors: make([]*Error, 0, len(errs)),
 		}
+	)
+
+	for _, err := range errs {
+		r.appendErr(err)
 	}
 
-	return resp
+	return r
+}
+
+func (r *Response) appendErr(err interface{}) {
+	switch v := err.(type) {
+	case Error:
+		r.Errors = append(r.Errors, &v)
+	case *Error:
+		r.Errors = append(r.Errors, v)
+	case string:
+		r.Errors = append(r.Errors, &Error{Message: v})
+	case []byte:
+		r.Errors = append(r.Errors, &Error{Message: string(v)})
+	case *Response:
+		r.Errors = append(r.Errors, v.Errors...)
+	case *errors.ErrorList:
+		v.ForEach(func(err error) {
+			r.appendErr(err)
+		})
+	case error:
+		r.Errors = append(r.Errors, &Error{Message: v.Error()})
+	default:
+		log.Panicf("unsupported error type (%T): %v", v, v)
+	}
 }
 
 // Error is returned in the error field of a Response.
