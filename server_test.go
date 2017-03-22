@@ -63,7 +63,7 @@ func TestServer(t *testing.T) {
 			}
 
 			for i := range resp.Errors {
-				if re, te := resp.Errors[i], td.Errors[i]; re != te {
+				if re, te := resp.Errors[i], td.Errors[i]; *re != *te {
 					t.Fatalf("expected %+v, got %+v", te, re)
 				}
 			}
@@ -82,7 +82,7 @@ func TestServer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("response header: %+v", res.Header)
+
 	if !bytes.Equal(readme, b) {
 		t.Fatal("files not equal")
 	}
