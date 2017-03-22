@@ -17,6 +17,7 @@ var testData = []struct {
 	{"/ping/world", NewResponse("pong:world")},
 	{"/random", RespNotFound},
 	{"/panic", NewErrorResponse(http.StatusInternalServerError, "PANIC (string): well... poo")},
+	{"/mw/sub", NewResponse("data:test")},
 }
 
 func TestServer(t *testing.T) {
@@ -36,6 +37,14 @@ func TestServer(t *testing.T) {
 		return NewResponse("pong:" + ctx.Params.Get("id"))
 	})
 	srv.GET("/s/*fp", StaticDir("./", "fp"))
+
+	srv.Group("/mw", func(ctx *Context) *Response {
+		ctx.Set("data", "test")
+		return nil
+	}).GET("/sub", func(ctx *Context) *Response {
+		v, _ := ctx.Get("data").(string)
+		return NewResponse("data:" + v)
+	})
 
 	defer ts.Close()
 

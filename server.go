@@ -65,7 +65,7 @@ func New(opts ...OptionCallback) *Server {
 		})
 	}
 
-	srv.Group = &Group{s: srv}
+	srv.group = &group{s: srv}
 
 	return srv
 }
@@ -79,10 +79,11 @@ type Server struct {
 	servers    []*http.Server
 
 	closed int32
-	*Group
 
 	PanicHandler    func(ctx *Context, v interface{})
 	NotFoundHandler func(ctx *Context)
+
+	*group
 }
 
 // ServeHTTP allows using the server in custom scenarios that expects an http.Handler.
