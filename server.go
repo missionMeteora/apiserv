@@ -37,20 +37,35 @@ func New(opts ...OptionCallback) *Server {
 	srv.r = router.New(srv.opts.RouterOptions)
 
 	srv.r.PanicHandler = func(w http.ResponseWriter, req *http.Request, v interface{}) {
-		resp := NewErrorResponse(http.StatusInternalServerError, fmt.Sprintf("PANIC (%T): %v", v, v))
-		resp.WriteToCtx(&Context{
-			Req:            req,
-			ResponseWriter: w,
-		})
 		srv.Logf("PANIC (%T): %v", v, v)
+		ctx := getCtx(w, req, nil)
+		defer putCtx(ctx)
+
+		if srv.PanicHandler != nil {
+			srv.PanicHandler(ctx, v)
+			return
+		}
+
+		resp := NewErrorResponse(http.StatusInternalServerError, fmt.Sprintf("PANIC (%T): %v", v, v))
+		resp.WriteToCtx(ctx)
 	}
 
-	srv.r.NotFoundHandler = func(w http.ResponseWriter, req *http.Request, _ router.Params) {
+	srv.r.NotFoundHandler = func(w http.ResponseWriter, req *http.Request, p router.Params) {
+		ctx := getCtx(w, req, p)
+		defer putCtx(ctx)
+
+		if srv.NotFoundHandler != nil {
+			srv.NotFoundHandler(ctx)
+			return
+		}
+
 		RespNotFound.WriteToCtx(&Context{
 			Req:            req,
 			ResponseWriter: w,
 		})
 	}
+
+	srv.Group = &Group{s: srv}
 
 	return srv
 }
@@ -64,32 +79,10 @@ type Server struct {
 	servers    []*http.Server
 
 	closed int32
-}
+	*Group
 
-// AddRoute adds a handler (or more) to the specific method and path
-// it is NOT safe to call this once you call one of the run functions
-func (s *Server) AddRoute(method, path string, handlers ...Handler) error {
-	return s.r.AddRoute(method, path, handlerChain(handlers).Serve)
-}
-
-// GET is an alias for AddRoute("GET", path, handlers...).
-func (s *Server) GET(path string, handlers ...Handler) error {
-	return s.AddRoute("GET", path, handlers...)
-}
-
-// PUT is an alias for AddRoute("PUT", path, handlers...).
-func (s *Server) PUT(path string, handlers ...Handler) error {
-	return s.AddRoute("PUT", path, handlers...)
-}
-
-// POST is an alias for AddRoute("POST", path, handlers...).
-func (s *Server) POST(path string, handlers ...Handler) error {
-	return s.AddRoute("POST", path, handlers...)
-}
-
-// DELETE is an alias for AddRoute("DELETE", path, handlers...).
-func (s *Server) DELETE(path string, handlers ...Handler) error {
-	return s.AddRoute("DELETE", path, handlers...)
+	PanicHandler    func(ctx *Context, v interface{})
+	NotFoundHandler func(ctx *Context)
 }
 
 // ServeHTTP allows using the server in custom scenarios that expects an http.Handler.
