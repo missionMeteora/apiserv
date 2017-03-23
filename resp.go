@@ -15,6 +15,8 @@ var (
 	RespNotFound   = NewErrorResponse(http.StatusNotFound, http.StatusText(http.StatusNotFound))
 	RespForbidden  = NewErrorResponse(http.StatusForbidden, http.StatusText(http.StatusForbidden))
 	RespBadRequest = NewErrorResponse(http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
+	RespEmpty      = &Response{Code: http.StatusNoContent}
+	RespRedirRoot  = RedirectTo(http.StatusTemporaryRedirect, "/")
 )
 
 // Common mime-types
@@ -27,8 +29,20 @@ const (
 // NewResponse returns a new success response (code 200) with the specific data
 func NewResponse(data interface{}) *Response {
 	return &Response{
-		Code: 200,
+		Code: http.StatusOK,
 		Data: data,
+	}
+}
+
+// RedirectTo returns a redirect Response.
+// if code is 0, it will be set to http.StatusTemporaryRedirect.
+func RedirectTo(code int, url string) *Response {
+	if code == 0 {
+		code = http.StatusTemporaryRedirect
+	}
+	return &Response{
+		Code: code,
+		Data: url,
 	}
 }
 
@@ -67,12 +81,24 @@ func (r *Response) ErrorList() *errors.ErrorList {
 
 // WriteToCtx writes the response to a ResponseWriter
 func (r *Response) WriteToCtx(ctx *Context) error {
-	if r.Code == 0 {
+	switch r.Code {
+	case 0:
 		if len(r.Errors) > 0 {
 			r.Code = http.StatusBadRequest
 		} else {
 			r.Code = http.StatusOK
 		}
+	case http.StatusNoContent: // special case
+		ctx.WriteHeader(204)
+		return nil
+	case http.StatusSeeOther, http.StatusPermanentRedirect, http.StatusTemporaryRedirect,
+		http.StatusMovedPermanently, http.StatusFound:
+		u, ok := r.Data.(string)
+		if !ok || u == "" {
+			return ErrInvalidURL
+		}
+		http.Redirect(ctx, ctx.Req, u, r.Code)
+		return nil
 	}
 
 	r.Success = r.Code >= http.StatusOK && r.Code < http.StatusMultipleChoices

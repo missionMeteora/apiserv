@@ -2,7 +2,6 @@ package apiserv
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,11 +9,14 @@ import (
 	"sync"
 
 	"github.com/missionMeteora/apiserv/router"
+	"github.com/missionMeteora/toolkit/errors"
 )
 
-var (
+const (
 	// ErrDir is Returned from ctx.File when the path is a directory not a file.
-	ErrDir = errors.New("file is a directory")
+	ErrDir = errors.Error("file is a directory")
+
+	ErrInvalidURL = errors.Error("invalid redirect error")
 )
 
 // Context is the default context passed to handlers
@@ -54,16 +56,6 @@ func (ctx *Context) Set(key string, val interface{}) {
 	}
 
 	ctx.data[key] = val
-}
-
-// Redirect is a helper function for http redirect.
-// if perm is true the status code is http.StatusPermanentRedirect, otherwise http.StatusTemporaryRedirect.
-func (ctx *Context) Redirect(url string, perm bool) {
-	code := http.StatusTemporaryRedirect
-	if perm {
-		code = http.StatusPermanentRedirect
-	}
-	http.Redirect(ctx, ctx.Req, url, code)
 }
 
 // WriteReader outputs the data from the passed reader with optional content-type.
