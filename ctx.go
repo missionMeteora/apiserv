@@ -208,7 +208,11 @@ func getCtx(rw http.ResponseWriter, req *http.Request, p router.Params) *Context
 }
 
 func putCtx(ctx *Context) {
-	*ctx = Context{}
+	ctx.ResponseWriter, ctx.Req, ctx.Params = nil, nil, nil
+	ctx.done, ctx.hijackServeContent, ctx.status = false, false, 0
+	for k := range ctx.data {
+		delete(ctx.data, k)
+	}
 	ctxPool.Put(ctx)
 }
 
