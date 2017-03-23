@@ -16,6 +16,7 @@ const (
 	// ErrDir is Returned from ctx.File when the path is a directory not a file.
 	ErrDir = errors.Error("file is a directory")
 
+	// ErrInvalidURL gets returned on invalid redirect urls.
 	ErrInvalidURL = errors.Error("invalid redirect error")
 )
 
@@ -208,6 +209,8 @@ func getCtx(rw http.ResponseWriter, req *http.Request, p router.Params) *Context
 }
 
 func putCtx(ctx *Context) {
+	// TODO(OneOfOne):
+	/// use *ctx = Context{} when https://github.com/golang/go/issues/19677 gets fixed or 1.9 comes out.
 	ctx.ResponseWriter, ctx.Req, ctx.Params, ctx.data = nil, nil, nil, nil
 	ctx.done, ctx.hijackServeContent, ctx.status = false, false, 0
 	ctxPool.Put(ctx)

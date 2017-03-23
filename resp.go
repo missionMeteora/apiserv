@@ -16,14 +16,15 @@ var (
 	RespForbidden  = NewErrorResponse(http.StatusForbidden, http.StatusText(http.StatusForbidden))
 	RespBadRequest = NewErrorResponse(http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
 	RespEmpty      = &Response{Code: http.StatusNoContent}
-	RespRedirRoot  = RedirectTo(http.StatusTemporaryRedirect, "/")
+	RespRedirRoot  = RedirectTo("/", false)
 )
 
 // Common mime-types
 const (
-	MimeJSON  = "application/json; charset=utf-8"
-	MimeHTML  = "text/html; charset=utf-8"
-	MimePlain = "text/plain; charset=utf-8"
+	MimeJSON   = "application/json; charset=utf-8"
+	MimeHTML   = "text/html; charset=utf-8"
+	MimePlain  = "text/plain; charset=utf-8"
+	MimeBinary = "application/octet-stream"
 )
 
 // NewResponse returns a new success response (code 200) with the specific data
@@ -35,10 +36,12 @@ func NewResponse(data interface{}) *Response {
 }
 
 // RedirectTo returns a redirect Response.
-// if code is 0, it will be set to http.StatusTemporaryRedirect.
-func RedirectTo(code int, url string) *Response {
-	if code == 0 {
-		code = http.StatusTemporaryRedirect
+// if perm is false it uses http.StatusFound (302), otherwise http.StatusMovedPermanently (302)
+// For different status codes, you can return &Response{Code: XXXX, Data: redirect-url}.
+func RedirectTo(url string, perm bool) *Response {
+	code := http.StatusFound
+	if perm {
+		code = http.StatusMovedPermanently
 	}
 	return &Response{
 		Code: code,
@@ -88,13 +91,15 @@ func (r *Response) WriteToCtx(ctx *Context) error {
 		} else {
 			r.Code = http.StatusOK
 		}
+
 	case http.StatusNoContent: // special case
 		ctx.WriteHeader(204)
 		return nil
+
 	case http.StatusSeeOther, http.StatusPermanentRedirect, http.StatusTemporaryRedirect,
 		http.StatusMovedPermanently, http.StatusFound:
-		u, ok := r.Data.(string)
-		if !ok || u == "" {
+		u, _ := r.Data.(string)
+		if u == "" {
 			return ErrInvalidURL
 		}
 		http.Redirect(ctx, ctx.Req, u, r.Code)
