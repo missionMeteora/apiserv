@@ -7,7 +7,28 @@ import (
 	"github.com/missionMeteora/apiserv/router"
 )
 
-// group represents a handler group (aka supports middleware, gin's .Use)
+// Group represents a handler group.
+type Group interface {
+	// Use adds more middleware to the current group.
+	Use(mw ...Handler)
+
+	// Group returns a sub-group starting at the specified path and using the specified middlewares.
+	Group(path string, mw ...Handler) Group
+
+	// AddRoute adds a handler (or more) to the specific method and path
+	// it is NOT safe to call this once you call one of the run functions
+	AddRoute(method, path string, handlers ...Handler) error
+
+	// GET is an alias for AddRoute("GET", path, handlers...).
+	GET(path string, handlers ...Handler) error
+	// PUT is an alias for AddRoute("PUT", path, handlers...).
+	PUT(path string, handlers ...Handler) error
+	// POST is an alias for AddRoute("POST", path, handlers...).
+	POST(path string, handlers ...Handler) error
+	// DELETE is an alias for AddRoute("DELETE", path, handlers...).
+	DELETE(path string, handlers ...Handler) error
+}
+
 type group struct {
 	mw   []Handler
 	path string
@@ -50,7 +71,7 @@ func (g *group) DELETE(path string, handlers ...Handler) error {
 }
 
 // group returns a sub-handler group based on the current group's middleware
-func (g *group) Group(path string, mw ...Handler) *group {
+func (g *group) Group(path string, mw ...Handler) Group {
 	return &group{
 		mw:   append(g.mw[:len(g.mw):len(g.mw)], mw...),
 		path: joinPath(g.path, path),
