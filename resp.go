@@ -50,8 +50,11 @@ func RedirectTo(url string, perm bool) *Response {
 }
 
 // ReadResponse reads a response from an io.ReadCloser and closes the body.
-func ReadResponse(rc io.ReadCloser) (*Response, error) {
+// dataValue is the data type you're expecting, for example:
+//	r, err := ReadResponse(res.Body, &map[string]*Stats{})
+func ReadResponse(rc io.ReadCloser, dataValue interface{}) (*Response, error) {
 	var r Response
+	r.Data = dataValue
 	if err := json.NewDecoder(rc).Decode(&r); err != nil {
 		rc.Close()
 		return nil, err
