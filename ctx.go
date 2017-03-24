@@ -2,18 +2,22 @@ package apiserv
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"sync"
 
 	"github.com/missionMeteora/apiserv/router"
+	"github.com/missionMeteora/toolkit/errors"
 )
 
-var (
+const (
 	// ErrDir is Returned from ctx.File when the path is a directory not a file.
-	ErrDir = errors.New("file is a directory")
+	ErrDir = errors.Error("file is a directory")
+
+	// ErrInvalidURL gets returned on invalid redirect urls.
+	ErrInvalidURL = errors.Error("invalid redirect error")
 )
 
 // Context is the default context passed to handlers
@@ -53,16 +57,6 @@ func (ctx *Context) Set(key string, val interface{}) {
 	}
 
 	ctx.data[key] = val
-}
-
-// Redirect is a helper function for http redirect.
-// if perm is true the status code is http.StatusPermanentRedirect, otherwise http.StatusTemporaryRedirect.
-func (ctx *Context) Redirect(url string, perm bool) {
-	code := http.StatusTemporaryRedirect
-	if perm {
-		code = http.StatusPermanentRedirect
-	}
-	http.Redirect(ctx, ctx.Req, url, code)
 }
 
 // WriteReader outputs the data from the passed reader with optional content-type.
@@ -201,6 +195,27 @@ func (ctx *Context) Status() int {
 // Done returns wither the context is marked as done or not.
 func (ctx *Context) Done() bool { return ctx.done }
 
+var ctxPool = sync.Pool{
+	New: func() interface{} { return &Context{} },
+}
+
+func getCtx(rw http.ResponseWriter, req *http.Request, p router.Params) *Context {
+	ctx, ok := ctxPool.Get().(*Context)
+	if !ok {
+		ctx = &Context{}
+	}
+	ctx.ResponseWriter, ctx.Req, ctx.Params = rw, req, p
+	return ctx
+}
+
+func putCtx(ctx *Context) {
+	// TODO(OneOfOne):
+	/// use *ctx = Context{} when https://github.com/golang/go/issues/19677 gets fixed or 1.9 comes out.
+	ctx.ResponseWriter, ctx.Req, ctx.Params, ctx.data = nil, nil, nil, nil
+	ctx.done, ctx.hijackServeContent, ctx.status = false, false, 0
+	ctxPool.Put(ctx)
+}
+
 // Break can be returned from a handler to break a handler chain.
 // It doesn't write anything to the connection.
 var Break = &Response{Code: -1}
@@ -208,26 +223,3 @@ var Break = &Response{Code: -1}
 // Handler is the default server Handler
 // In a handler chain, returning a non-nil breaks the chain.
 type Handler func(ctx *Context) *Response
-
-type handlerChain []Handler
-
-func (hh handlerChain) Serve(rw http.ResponseWriter, req *http.Request, p router.Params) {
-	ctx := &Context{
-		Params:         p,
-		Req:            req,
-		ResponseWriter: rw,
-	}
-L:
-	for _, h := range hh {
-		switch r := h(ctx); r {
-		case nil: // do nothing on nil
-		case Break: // break means break the chain
-			break L
-		default:
-			if !ctx.done {
-				r.WriteToCtx(ctx)
-			}
-			break L
-		}
-	}
-}

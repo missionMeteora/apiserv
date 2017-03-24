@@ -17,6 +17,7 @@ var testData = []struct {
 	{"/ping/world", NewResponse("pong:world")},
 	{"/random", RespNotFound},
 	{"/panic", NewErrorResponse(http.StatusInternalServerError, "PANIC (string): well... poo")},
+	{"/mw/sub", NewResponse("data:test")},
 }
 
 func TestServer(t *testing.T) {
@@ -37,53 +38,83 @@ func TestServer(t *testing.T) {
 	})
 	srv.GET("/s/*fp", StaticDir("./", "fp"))
 
+	srv.Group("/mw", func(ctx *Context) *Response {
+		ctx.Set("data", "test")
+		return nil
+	}).GET("/sub", func(ctx *Context) *Response {
+		v, _ := ctx.Get("data").(string)
+		return NewResponse("data:" + v)
+	})
+
 	defer ts.Close()
 
 	for _, td := range testData {
-		var (
-			res, err = http.Get(ts.URL + td.path)
-			resp     Response
-		)
-		if err != nil {
-			t.Fatal(td.path, err)
-		}
-		err = json.NewDecoder(res.Body).Decode(&resp)
-		res.Body.Close()
-		if err != nil {
-			t.Fatal(td.path, err)
-		}
+		t.Run("Path:"+td.path, func(t *testing.T) {
+			var (
+				res, err = http.Get(ts.URL + td.path)
+				resp     Response
+			)
+			if err != nil {
+				t.Fatal(td.path, err)
+			}
+			err = json.NewDecoder(res.Body).Decode(&resp)
+			res.Body.Close()
+			if err != nil {
+				t.Fatal(td.path, err)
+			}
 
-		if resp.Code != td.Code || resp.Data != td.Data {
-			t.Fatalf("expected (%s) %+v, got %+v", td.path, td.Response, resp)
-		}
-
-		if len(resp.Errors) > 0 {
-			if len(resp.Errors) != len(td.Errors) {
+			if resp.Code != td.Code || resp.Data != td.Data {
 				t.Fatalf("expected (%s) %+v, got %+v", td.path, td.Response, resp)
 			}
 
-			for i := range resp.Errors {
-				if re, te := resp.Errors[i], td.Errors[i]; *re != *te {
-					t.Fatalf("expected %+v, got %+v", te, re)
+			if len(resp.Errors) > 0 {
+				if len(resp.Errors) != len(td.Errors) {
+					t.Fatalf("expected (%s) %+v, got %+v", td.path, td.Response, resp)
+				}
+
+				for i := range resp.Errors {
+					if re, te := resp.Errors[i], td.Errors[i]; *re != *te {
+						t.Fatalf("expected %+v, got %+v", te, re)
+					}
 				}
 			}
+
+		})
+	}
+
+	t.Run("Static", func(t *testing.T) {
+		readme, _ := ioutil.ReadFile("./router/README.md")
+		res, err := http.Get(ts.URL + "/s/router/README.md")
+
+		if err != nil {
+			t.Fatal(err)
 		}
-	}
 
-	readme, _ := ioutil.ReadFile("./router/README.md")
-	res, err := http.Get(ts.URL + "/s/router/README.md")
+		b, err := ioutil.ReadAll(res.Body)
+		res.Body.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	if err != nil {
-		t.Fatal(err)
-	}
+		if !bytes.Equal(readme, b) {
+			t.Fatal("files not equal")
+		}
+	})
 
-	b, err := ioutil.ReadAll(res.Body)
-	res.Body.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
+	t.Run("ReadResp", func(t *testing.T) {
+		res, err := http.Get(ts.URL + "/ping")
 
-	if !bytes.Equal(readme, b) {
-		t.Fatal("files not equal")
-	}
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		var s string
+		r, err := ReadResponse(res.Body, &s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s != "pong" {
+			t.Fatalf("expected pong, got %+v", r)
+		}
+	})
 }

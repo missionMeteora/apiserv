@@ -15,26 +15,46 @@ var (
 	RespNotFound   = NewErrorResponse(http.StatusNotFound, http.StatusText(http.StatusNotFound))
 	RespForbidden  = NewErrorResponse(http.StatusForbidden, http.StatusText(http.StatusForbidden))
 	RespBadRequest = NewErrorResponse(http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
+	RespEmpty      = &Response{Code: http.StatusNoContent}
+	RespRedirRoot  = RedirectTo("/", false)
 )
 
 // Common mime-types
 const (
-	MimeJSON  = "application/json; charset=utf-8"
-	MimeHTML  = "text/html; charset=utf-8"
-	MimePlain = "text/plain; charset=utf-8"
+	MimeJSON   = "application/json; charset=utf-8"
+	MimeHTML   = "text/html; charset=utf-8"
+	MimePlain  = "text/plain; charset=utf-8"
+	MimeBinary = "application/octet-stream"
 )
 
 // NewResponse returns a new success response (code 200) with the specific data
 func NewResponse(data interface{}) *Response {
 	return &Response{
-		Code: 200,
+		Code: http.StatusOK,
 		Data: data,
 	}
 }
 
+// RedirectTo returns a redirect Response.
+// if perm is false it uses http.StatusFound (302), otherwise http.StatusMovedPermanently (302)
+// For different status codes, you can return &Response{Code: XXXX, Data: redirect-url}.
+func RedirectTo(url string, perm bool) *Response {
+	code := http.StatusFound
+	if perm {
+		code = http.StatusMovedPermanently
+	}
+	return &Response{
+		Code: code,
+		Data: url,
+	}
+}
+
 // ReadResponse reads a response from an io.ReadCloser and closes the body.
-func ReadResponse(rc io.ReadCloser) (*Response, error) {
+// dataValue is the data type you're expecting, for example:
+//	r, err := ReadResponse(res.Body, &map[string]*Stats{})
+func ReadResponse(rc io.ReadCloser, dataValue interface{}) (*Response, error) {
 	var r Response
+	r.Data = dataValue
 	if err := json.NewDecoder(rc).Decode(&r); err != nil {
 		rc.Close()
 		return nil, err
@@ -67,12 +87,26 @@ func (r *Response) ErrorList() *errors.ErrorList {
 
 // WriteToCtx writes the response to a ResponseWriter
 func (r *Response) WriteToCtx(ctx *Context) error {
-	if r.Code == 0 {
+	switch r.Code {
+	case 0:
 		if len(r.Errors) > 0 {
 			r.Code = http.StatusBadRequest
 		} else {
 			r.Code = http.StatusOK
 		}
+
+	case http.StatusNoContent: // special case
+		ctx.WriteHeader(204)
+		return nil
+
+	case http.StatusSeeOther, http.StatusPermanentRedirect, http.StatusTemporaryRedirect,
+		http.StatusMovedPermanently, http.StatusFound:
+		u, _ := r.Data.(string)
+		if u == "" {
+			return ErrInvalidURL
+		}
+		http.Redirect(ctx, ctx.Req, u, r.Code)
+		return nil
 	}
 
 	r.Success = r.Code >= http.StatusOK && r.Code < http.StatusMultipleChoices
@@ -81,35 +115,52 @@ func (r *Response) WriteToCtx(ctx *Context) error {
 }
 
 // NewErrorResponse returns a new error response.
-// errs can be:
+// each err can be:
 // 1. string or []byte
 // 2. error
 // 3. Error / *Error
-// 4. any other value will be used as-is
+// 4. another response, its Errors will be appended to the returned Response.
+// 5. if errs is empty, it will call http.StatusText(code) and set that as the error.
 func NewErrorResponse(code int, errs ...interface{}) *Response {
-	resp := &Response{
-		Code:   code,
-		Errors: make([]*Error, len(errs)),
+	if len(errs) == 0 {
+		errs = append(errs, http.StatusText(code))
 	}
 
-	for i, err := range errs {
-		switch v := err.(type) {
-		case Error:
-			resp.Errors[i] = &v
-		case *Error:
-			resp.Errors[i] = v
-		case string:
-			resp.Errors[i] = &Error{Message: v}
-		case []byte:
-			resp.Errors[i] = &Error{Message: string(v)}
-		case error:
-			resp.Errors[i] = &Error{Message: v.Error()}
-		default:
-			log.Panicf("unsupported error type (%T): %v", v, v)
+	var (
+		r = &Response{
+			Code:   code,
+			Errors: make([]*Error, 0, len(errs)),
 		}
+	)
+
+	for _, err := range errs {
+		r.appendErr(err)
 	}
 
-	return resp
+	return r
+}
+
+func (r *Response) appendErr(err interface{}) {
+	switch v := err.(type) {
+	case Error:
+		r.Errors = append(r.Errors, &v)
+	case *Error:
+		r.Errors = append(r.Errors, v)
+	case string:
+		r.Errors = append(r.Errors, &Error{Message: v})
+	case []byte:
+		r.Errors = append(r.Errors, &Error{Message: string(v)})
+	case *Response:
+		r.Errors = append(r.Errors, v.Errors...)
+	case *errors.ErrorList:
+		v.ForEach(func(err error) {
+			r.appendErr(err)
+		})
+	case error:
+		r.Errors = append(r.Errors, &Error{Message: v.Error()})
+	default:
+		log.Panicf("unsupported error type (%T): %v", v, v)
+	}
 }
 
 // Error is returned in the error field of a Response.
