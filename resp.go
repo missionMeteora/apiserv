@@ -167,12 +167,16 @@ func (e *Error) Error() string {
 
 // Redirect returns a redirect Response.
 // if perm is false it uses http.StatusFound (302), otherwise http.StatusMovedPermanently (302)
-// For different status codes, you can return &Response{Code: XXXX, Data: redirect-url}.
 func Redirect(url string, perm bool) Response {
 	code := http.StatusFound
 	if perm {
 		code = http.StatusMovedPermanently
 	}
+	return RedirectWithCode(url, code)
+}
+
+// RedirectWithCode returns a redirect Response with the specified status code.
+func RedirectWithCode(url string, code int) Response {
 	return redirResp{url, code}
 }
 
