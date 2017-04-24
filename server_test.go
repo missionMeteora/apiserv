@@ -11,13 +11,13 @@ import (
 
 var testData = []struct {
 	path string
-	*Response
+	*JSONResponse
 }{
-	{"/ping", NewResponse("pong")},
-	{"/ping/world", NewResponse("pong:world")},
-	{"/random", RespNotFound},
-	{"/panic", NewErrorResponse(http.StatusInternalServerError, "PANIC (string): well... poo")},
-	{"/mw/sub", NewResponse("data:test")},
+	{"/ping", NewJSONResponse("pong")},
+	{"/ping/world", NewJSONResponse("pong:world")},
+	{"/random", RespNotFound.(*JSONResponse)},
+	{"/panic", NewJSONErrorResponse(http.StatusInternalServerError, "PANIC (string): well... poo")},
+	{"/mw/sub", NewJSONResponse("data:test")},
 }
 
 func TestServer(t *testing.T) {
@@ -26,24 +26,27 @@ func TestServer(t *testing.T) {
 		ts  = httptest.NewServer(srv)
 	)
 
-	srv.GET("/ping", func(ctx *Context) *Response {
-		return NewResponse("pong")
+	srv.GET("/ping", func(ctx *Context) Response {
+		return NewJSONResponse("pong")
 	})
-	srv.GET("/panic", func(ctx *Context) *Response {
+	srv.GET("/panic", func(ctx *Context) Response {
 		panic("well... poo")
 	})
 
-	srv.GET("/ping/:id", func(ctx *Context) *Response {
-		return NewResponse("pong:" + ctx.Params.Get("id"))
+	srv.GET("/ping/:id", func(ctx *Context) Response {
+		return NewJSONResponse("pong:" + ctx.Params.Get("id"))
 	})
-	srv.GET("/s/*fp", StaticDir("./", "fp"))
 
-	srv.Group("/mw", func(ctx *Context) *Response {
+	srv.Static("/s/", "./")
+
+	srv.StaticFile("/README.md", "./router/README.md")
+
+	srv.Group("/mw", func(ctx *Context) Response {
 		ctx.Set("data", "test")
 		return nil
-	}).GET("/sub", func(ctx *Context) *Response {
+	}).GET("/sub", func(ctx *Context) Response {
 		v, _ := ctx.Get("data").(string)
-		return NewResponse("data:" + v)
+		return NewJSONResponse("data:" + v)
 	})
 
 	defer ts.Close()
@@ -52,7 +55,7 @@ func TestServer(t *testing.T) {
 		t.Run("Path:"+td.path, func(t *testing.T) {
 			var (
 				res, err = http.Get(ts.URL + td.path)
-				resp     Response
+				resp     JSONResponse
 			)
 			if err != nil {
 				t.Fatal(td.path, err)
@@ -64,12 +67,12 @@ func TestServer(t *testing.T) {
 			}
 
 			if resp.Code != td.Code || resp.Data != td.Data {
-				t.Fatalf("expected (%s) %+v, got %+v", td.path, td.Response, resp)
+				t.Fatalf("expected (%s) %+v, got %+v", td.path, td.JSONResponse, resp)
 			}
 
 			if len(resp.Errors) > 0 {
 				if len(resp.Errors) != len(td.Errors) {
-					t.Fatalf("expected (%s) %+v, got %+v", td.path, td.Response, resp)
+					t.Fatalf("expected (%s) %+v, got %+v", td.path, td.JSONResponse, resp)
 				}
 
 				for i := range resp.Errors {
@@ -99,6 +102,22 @@ func TestServer(t *testing.T) {
 		if !bytes.Equal(readme, b) {
 			t.Fatal("files not equal")
 		}
+
+		res, err = http.Get(ts.URL + "/README.md")
+
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		b, err = ioutil.ReadAll(res.Body)
+		res.Body.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !bytes.Equal(readme, b) {
+			t.Fatal("files not equal", string(b))
+		}
 	})
 
 	t.Run("ReadResp", func(t *testing.T) {
@@ -109,7 +128,7 @@ func TestServer(t *testing.T) {
 		}
 
 		var s string
-		r, err := ReadResponse(res.Body, &s)
+		r, err := ReadJSONResponse(res.Body, &s)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -176,11 +176,11 @@ func (ctx *Context) WriteHeader(s int) {
 
 }
 
-// WriteHeader implements http.ResponseWriter
+// Write implements http.ResponseWriter
 func (ctx *Context) Write(p []byte) (int, error) {
 	if ctx.hijackServeContent && ctx.status >= 300 {
 		ctx.hijackServeContent = false
-		NewErrorResponse(ctx.status, p).WriteToCtx(ctx)
+		NewJSONErrorResponse(ctx.status, p).WriteToCtx(ctx)
 		return len(p), nil
 	}
 	ctx.done = true
@@ -218,8 +218,9 @@ func putCtx(ctx *Context) {
 
 // Break can be returned from a handler to break a handler chain.
 // It doesn't write anything to the connection.
-var Break = &Response{Code: -1}
+// if you reassign this, a wild animal will devour your face.
+var Break Response = &JSONResponse{Code: -1}
 
 // Handler is the default server Handler
 // In a handler chain, returning a non-nil breaks the chain.
-type Handler func(ctx *Context) *Response
+type Handler func(ctx *Context) Response

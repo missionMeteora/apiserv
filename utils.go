@@ -23,7 +23,7 @@ func StaticDirWithLimit(dir, paramName string, limit int) Handler {
 		sem = make(chan struct{}, limit)
 	}
 
-	return func(ctx *Context) *Response {
+	return func(ctx *Context) Response {
 		path := ctx.Param(paramName)
 		if sem != nil {
 			sem <- e
@@ -34,7 +34,7 @@ func StaticDirWithLimit(dir, paramName string, limit int) Handler {
 			if os.IsNotExist(err) {
 				return RespNotFound
 			}
-			return NewErrorResponse(500, err)
+			return NewJSONErrorResponse(500, err)
 		}
 
 		return nil
