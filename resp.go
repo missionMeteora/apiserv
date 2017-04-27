@@ -57,12 +57,12 @@ func ReadJSONResponse(rc io.ReadCloser, dataValue interface{}) (*JSONResponse, e
 
 // Response is the default standard api response
 type JSONResponse struct {
-	Code    int         `json:"code"`    // if code is not set, it defaults to 200 if error is nil otherwise 400.
-	Success bool        `json:"success"` // automatically set to true if r.Code >= 200 && r.Code < 300.
-	Data    interface{} `json:"data,omitempty"`
-	Errors  []*Error    `json:"errors,omitempty"`
+	Code   int         `json:"code"` // if code is not set, it defaults to 200 if error is nil otherwise 400.
+	Data   interface{} `json:"data,omitempty"`
+	Errors []*Error    `json:"errors,omitempty"`
 
-	Indent bool `json:"-"` // if set to true, the json encoder will output indented json.
+	Success bool `json:"success"` // automatically set to true if r.Code >= 200 && r.Code < 300.
+	Indent  bool `json:"-"`       // if set to true, the json encoder will output indented json.
 }
 
 // ErrorList returns an errors.ErrorList of this response's errors or nil.

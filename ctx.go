@@ -29,10 +29,9 @@ type Context struct {
 
 	data map[string]interface{}
 
-	done bool
-
 	status             int
 	hijackServeContent bool
+	done               bool
 }
 
 // Param is a shorthand for ctx.Params.Get(name).
