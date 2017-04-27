@@ -215,11 +215,6 @@ func putCtx(ctx *Context) {
 	ctxPool.Put(ctx)
 }
 
-// Break can be returned from a handler to break a handler chain.
-// It doesn't write anything to the connection.
-// if you reassign this, a wild animal will devour your face.
-var Break Response = &JSONResponse{Code: -1}
-
 // Handler is the default server Handler
 // In a handler chain, returning a non-nil breaks the chain.
 type Handler func(ctx *Context) Response

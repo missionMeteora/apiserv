@@ -17,6 +17,11 @@ var (
 	RespBadRequest Response = NewJSONErrorResponse(http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
 	RespEmpty      Response = &JSONResponse{Code: http.StatusNoContent}
 	RespRedirRoot  Response = Redirect("/", false)
+
+	// Break can be returned from a handler to break a handler chain.
+	// It doesn't write anything to the connection.
+	// if you reassign this, a wild animal will devour your face.
+	Break Response = &JSONResponse{Code: -1}
 )
 
 // Common mime-types

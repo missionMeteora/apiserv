@@ -82,7 +82,7 @@ func (g *group) Static(path, localPath string) error {
 
 func (g *group) StaticFile(path, localPath string) error {
 	return g.AddRoute("GET", path, func(ctx *Context) Response {
-		_ = ctx.File(localPath)
+		ctx.File(localPath)
 		return Break
 	})
 }
@@ -123,7 +123,7 @@ func (ghc *groupHandlerChain) Serve(rw http.ResponseWriter, req *http.Request, p
 	for _, h := range ghc.g.mw {
 		if r := h(ctx); r != nil {
 			if !ctx.done && r != Break {
-				_ = r.WriteToCtx(ctx)
+				r.WriteToCtx(ctx)
 			}
 			return
 		}
@@ -132,7 +132,7 @@ func (ghc *groupHandlerChain) Serve(rw http.ResponseWriter, req *http.Request, p
 	for _, h := range ghc.hc {
 		if r := h(ctx); r != nil {
 			if !ctx.done && r != Break {
-				_ = r.WriteToCtx(ctx)
+				r.WriteToCtx(ctx)
 			}
 			return
 		}
