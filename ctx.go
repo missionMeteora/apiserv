@@ -165,7 +165,6 @@ func (ctx *Context) JSON(code int, indent bool, v interface{}) error {
 
 // WriteHeader and Write are to implement ResponseWriter and allows ghetto hijacking of http.ServeContent errors,
 // without them we'd end up with plain text errors, we wouldn't want that, would we?
-
 // WriteHeader implements http.ResponseWriter
 func (ctx *Context) WriteHeader(s int) {
 	if ctx.status = s; ctx.hijackServeContent && ctx.status >= 300 {

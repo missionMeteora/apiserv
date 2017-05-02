@@ -37,6 +37,8 @@ func TestServer(t *testing.T) {
 		return NewJSONResponse("pong:" + ctx.Params.Get("id"))
 	})
 
+	srv.StaticStd("/s-std/", "./")
+
 	srv.Static("/s/", "./")
 
 	srv.StaticFile("/README.md", "./router/README.md")
@@ -94,6 +96,22 @@ func TestServer(t *testing.T) {
 		}
 
 		b, err := ioutil.ReadAll(res.Body)
+		res.Body.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !bytes.Equal(readme, b) {
+			t.Fatal("files not equal")
+		}
+
+		res, err = http.Get(ts.URL + "/s-std/router/README.md")
+
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		b, err = ioutil.ReadAll(res.Body)
 		res.Body.Close()
 		if err != nil {
 			t.Fatal(err)

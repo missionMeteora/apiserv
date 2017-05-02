@@ -1,9 +1,29 @@
 package apiserv
 
 import (
+	"net/http"
 	"os"
 	"path/filepath"
 )
+
+// FromHTTPHandler returns a Handler from an http.Handler.
+func FromHTTPHandler(h http.Handler) Handler {
+	return FromHTTPHandlerFunc(h.ServeHTTP)
+}
+
+// FromHTTPHandlerFunc returns a Handler from an http.Handler.
+func FromHTTPHandlerFunc(h http.HandlerFunc) Handler {
+	return func(ctx *Context) Response {
+		h(ctx, ctx.Req)
+		return Break
+	}
+}
+
+// StaticDirStd is a QoL wrapper for http.FileServer(http.Dir(dir)).
+func StaticDirStd(prefix, dir string) Handler {
+	h := http.StripPrefix(prefix, http.FileServer(http.Dir(dir)))
+	return FromHTTPHandler(h)
+}
 
 // StaticDir is a shorthand for StaticDirWithLimit(dir, paramName, -1).
 func StaticDir(dir, paramName string) Handler {
