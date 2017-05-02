@@ -1,4 +1,4 @@
-// +build go18
+// +build go1.8
 
 package apiserv
 
