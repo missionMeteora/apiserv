@@ -16,7 +16,7 @@ var (
 	RespForbidden  Response = NewJSONErrorResponse(http.StatusForbidden, http.StatusText(http.StatusForbidden))
 	RespBadRequest Response = NewJSONErrorResponse(http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
 	RespEmpty      Response = &JSONResponse{Code: http.StatusNoContent}
-	RespRedirRoot  Response = Redirect("/", false)
+	RespRedirRoot           = Redirect("/", false)
 
 	// Break can be returned from a handler to break a handler chain.
 	// It doesn't write anything to the connection.
@@ -38,7 +38,7 @@ type Response interface {
 	WriteToCtx(ctx *Context) error
 }
 
-// NewResponse returns a new success response (code 200) with the specific data
+// NewJSONResponse returns a new success response (code 200) with the specific data
 func NewJSONResponse(data interface{}) *JSONResponse {
 	return &JSONResponse{
 		Code: http.StatusOK,
@@ -46,7 +46,7 @@ func NewJSONResponse(data interface{}) *JSONResponse {
 	}
 }
 
-// ReadResponse reads a response from an io.ReadCloser and closes the body.
+// ReadJSONResponse reads a response from an io.ReadCloser and closes the body.
 // dataValue is the data type you're expecting, for example:
 //	r, err := ReadJSONResponse(res.Body, &map[string]*Stats{})
 func ReadJSONResponse(rc io.ReadCloser, dataValue interface{}) (*JSONResponse, error) {
@@ -60,7 +60,7 @@ func ReadJSONResponse(rc io.ReadCloser, dataValue interface{}) (*JSONResponse, e
 	return &r, nil
 }
 
-// Response is the default standard api response
+// JSONResponse is the default standard api response
 type JSONResponse struct {
 	Code   int         `json:"code"` // if code is not set, it defaults to 200 if error is nil otherwise 400.
 	Data   interface{} `json:"data,omitempty"`
@@ -102,7 +102,7 @@ func (r *JSONResponse) WriteToCtx(ctx *Context) error {
 	return ctx.JSON(r.Code, r.Indent, r)
 }
 
-// NewErrorResponse returns a new error response.
+// NewJSONErrorResponse returns a new error response.
 // each err can be:
 // 1. string or []byte
 // 2. error
@@ -216,6 +216,7 @@ func (f fileResp) WriteToCtx(ctx *Context) error {
 	return ctx.File(f.fp)
 }
 
+// PlainResponse returns a plain text response.
 func PlainResponse(contentType string, v interface{}) Response {
 	return plainResp{contentType, v}
 }

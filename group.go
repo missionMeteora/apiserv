@@ -28,11 +28,9 @@ type Group interface {
 	// DELETE is an alias for AddRoute("DELETE", path, handlers...).
 	DELETE(path string, handlers ...Handler) error
 
-	// StaticStd is a QoL wrapper to serving a directory, using http.FileServer.
-	StaticStd(path, localPath string) error
-
 	// Static is a QoL wrapper to serving a directory.
-	Static(path, localPath string) error
+	// If allowListing is true, it will fallback to using http.FileServer.
+	Static(path, localPath string, allowListing bool) error
 
 	// StaticFile is a QoL wrapper to serving a static file.
 	StaticFile(path, localPath string) error
@@ -79,7 +77,7 @@ func (g *group) DELETE(path string, handlers ...Handler) error {
 	return g.AddRoute("DELETE", path, handlers...)
 }
 
-func (g *group) StaticStd(path, localPath string) error {
+func (g *group) staticStd(path, localPath string) error {
 	if strings.HasSuffix(path, "/") { // make sure the path doesn't end in / or StaticDirStd will break
 		path = strings.TrimSuffix(path, "/")
 	}
@@ -90,7 +88,10 @@ func (g *group) StaticStd(path, localPath string) error {
 	return g.AddRoute("GET", path, h)
 }
 
-func (g *group) Static(path, localPath string) error {
+func (g *group) Static(path, localPath string, allowListing bool) error {
+	if allowListing {
+		return g.staticStd(path, localPath)
+	}
 	return g.AddRoute("GET", joinPath(path, "*fp"), StaticDir(localPath, "fp"))
 }
 
