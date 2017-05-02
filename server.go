@@ -46,7 +46,7 @@ func New(opts ...OptionCallback) *Server {
 			return
 		}
 
-		resp := NewErrorResponse(http.StatusInternalServerError, fmt.Sprintf("PANIC (%T): %v", v, v))
+		resp := NewJSONErrorResponse(http.StatusInternalServerError, fmt.Sprintf("PANIC (%T): %v", v, v))
 		resp.WriteToCtx(ctx)
 	}
 

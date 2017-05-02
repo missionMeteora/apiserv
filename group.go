@@ -27,6 +27,12 @@ type Group interface {
 	POST(path string, handlers ...Handler) error
 	// DELETE is an alias for AddRoute("DELETE", path, handlers...).
 	DELETE(path string, handlers ...Handler) error
+
+	// Static is a QoL wrapper to serving a directory.
+	Static(path, localPath string) error
+
+	// StaticFile is a QoL wrapper to serving a static file.
+	StaticFile(path, localPath string) error
 }
 
 type group struct {
@@ -68,6 +74,17 @@ func (g *group) POST(path string, handlers ...Handler) error {
 // DELETE is an alias for AddRoute("DELETE", path, handlers...).
 func (g *group) DELETE(path string, handlers ...Handler) error {
 	return g.AddRoute("DELETE", path, handlers...)
+}
+
+func (g *group) Static(path, localPath string) error {
+	return g.AddRoute("GET", joinPath(path, "*fp"), StaticDir(localPath, "fp"))
+}
+
+func (g *group) StaticFile(path, localPath string) error {
+	return g.AddRoute("GET", path, func(ctx *Context) Response {
+		ctx.File(localPath)
+		return Break
+	})
 }
 
 // group returns a sub-handler group based on the current group's middleware
