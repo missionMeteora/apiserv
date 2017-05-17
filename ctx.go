@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/missionMeteora/apiserv/router"
 	"github.com/missionMeteora/toolkit/errors"
@@ -192,6 +193,42 @@ func (ctx *Context) Status() int {
 
 // Done returns wither the context is marked as done or not.
 func (ctx *Context) Done() bool { return ctx.done }
+
+// SetCookie sets an http-only cookie using the passed name, value and domain.
+// if forceSecure is true, it will set the Secure flag to true, otherwise it sets it based on the connection.
+// if duration == -1, it sets expires to 10 years in the past, if 0 it gets ignored (aka session-only cookie),
+// if duration > 0, the expiration date gets set to now() + duration.
+// Note that for more complex options, you can use http.SetCookie(ctx, &http.Cookie{...}).
+func (ctx *Context) SetCookie(name, value, domain string, forceSecure bool, duration time.Duration) {
+	cookie := &http.Cookie{
+		Path:     "/",
+		Name:     name,
+		Value:    value,
+		Domain:   getDomain(ctx.Req.Host),
+		HttpOnly: true,
+		Secure:   ctx.Req.TLS != nil,
+	}
+
+	if forceSecure {
+		cookie.Secure = true
+	}
+
+	switch duration {
+	case 0: // session only
+	case -1:
+		cookie.Expires = time.Now().UTC().AddDate(-10, 0, 0)
+	default:
+		cookie.Expires = time.Now().UTC().Add(duration)
+
+	}
+
+	http.SetCookie(ctx, cookie)
+}
+
+// RemoveCookie is an alias to ctx.SetCookie(name, "", domain, forceSecure, -1).
+func (ctx *Context) RemoveCookie(name, domain string, forceSecure bool) {
+	ctx.SetCookie(name, "", domain, forceSecure, -1)
+}
 
 var ctxPool = sync.Pool{
 	New: func() interface{} { return &Context{} },
