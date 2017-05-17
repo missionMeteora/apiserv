@@ -204,13 +204,9 @@ func (ctx *Context) SetCookie(name, value, domain string, forceSecure bool, dura
 		Path:     "/",
 		Name:     name,
 		Value:    value,
-		Domain:   getDomain(ctx.Req.Host),
+		Domain:   domain,
 		HttpOnly: true,
-		Secure:   ctx.Req.TLS != nil,
-	}
-
-	if forceSecure {
-		cookie.Secure = true
+		Secure:   forceSecure || ctx.Req.TLS != nil,
 	}
 
 	switch duration {
