@@ -12,10 +12,10 @@ import (
 
 // Common responses
 var (
-	RespNotFound   Response = NewJSONErrorResponse(http.StatusNotFound, http.StatusText(http.StatusNotFound))
-	RespForbidden  Response = NewJSONErrorResponse(http.StatusForbidden, http.StatusText(http.StatusForbidden))
-	RespBadRequest Response = NewJSONErrorResponse(http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
-	RespEmpty      Response = &JSONResponse{Code: http.StatusNoContent}
+	RespNotFound   Response = NewJSONErrorResponse(http.StatusNotFound)
+	RespForbidden  Response = NewJSONErrorResponse(http.StatusForbidden)
+	RespBadRequest Response = NewJSONErrorResponse(http.StatusBadRequest)
+	RespEmpty      Response = &simpleResp{code: http.StatusNoContent}
 	RespRedirRoot           = Redirect("/", false)
 
 	// Break can be returned from a handler to break a handler chain.
@@ -216,28 +216,45 @@ func (f fileResp) WriteToCtx(ctx *Context) error {
 	return ctx.File(f.fp)
 }
 
-// PlainResponse returns a plain text response.
-func PlainResponse(contentType string, v interface{}) Response {
-	return plainResp{contentType, v}
+// PlainResponse returns SimpleResponse(200, contentType, val).
+func PlainResponse(contentType string, val interface{}) Response {
+	return SimpleResponse(200, contentType, val)
 }
 
-type plainResp struct {
-	ct string
-	v  interface{}
+// SimpleResponse is a QoL wrapper to return a response with the specified code and content-type.
+// val can be: nil, []byte, string, io.Writer, anything else will be written with fmt.Printf("%v").
+func SimpleResponse(code int, contentType string, val interface{}) Response {
+	return &simpleResp{
+		ct:   contentType,
+		v:    val,
+		code: code,
+	}
 }
 
-func (r plainResp) WriteToCtx(ctx *Context) error {
+type simpleResp struct {
+	ct   string
+	v    interface{}
+	code int
+}
+
+func (r *simpleResp) WriteToCtx(ctx *Context) error {
 	if r.ct != "" {
 		ctx.SetContentType(r.ct)
 	}
+
+	if r.code > 0 {
+		ctx.WriteHeader(r.code)
+	}
+
 	var err error
 	switch v := r.v.(type) {
+	case nil:
 	case []byte:
 		_, err = ctx.Write(v)
 	case string:
 		_, err = io.WriteString(ctx, v)
-	case fmt.Stringer:
-		_, err = io.WriteString(ctx, v.String())
+	case io.Reader:
+		_, err = io.Copy(ctx, v)
 	default:
 		_, err = fmt.Fprintf(ctx, "%v", r.v)
 	}
