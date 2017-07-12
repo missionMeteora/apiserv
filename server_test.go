@@ -6,7 +6,9 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 )
 
 var testData = []struct {
@@ -169,4 +171,30 @@ func TestServer(t *testing.T) {
 			t.Fatalf("expected pong, got %+v", r)
 		}
 	})
+}
+
+func TestListenZero(t *testing.T) {
+	var (
+		s     = New()
+		timer = time.After(time.Second)
+	)
+	defer s.Shutdown(0)
+	go s.Run("127.0.0.1:0")
+	for {
+		select {
+		case <-timer:
+			t.Fatalf("still no address after 1 second")
+		default:
+		}
+		addrs := s.Addrs()
+		if len(addrs) == 0 {
+			time.Sleep(time.Millisecond)
+			continue
+		}
+		if strings.HasPrefix(addrs[0], ":0") {
+			t.Fatalf("unexpected addr: %v", addrs[0])
+		}
+		t.Logf("addrs: %s", addrs[0])
+		break
+	}
 }
