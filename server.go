@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"sync"
@@ -20,6 +21,8 @@ var DefaultOpts = options{
 	ReadTimeout:  time.Minute,
 
 	MaxHeaderBytes: 16 << 10, // 16kb
+
+	KeepAlivePeriod: 3 * time.Minute, // default value in net/http
 
 	Logger: log.New(os.Stderr, "APIServer: ", log.Lshortfile),
 }
@@ -91,9 +94,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	s.r.ServeHTTP(w, req)
 }
 
-// Run starts the server on the specific address
-func (s *Server) Run(addr string) error {
-	srv := &http.Server{
+func (s *Server) newHTTPServer(addr string) *http.Server {
+	return &http.Server{
 		Addr:           addr,
 		Handler:        s.r,
 		ReadTimeout:    s.opts.ReadTimeout,
@@ -101,12 +103,30 @@ func (s *Server) Run(addr string) error {
 		MaxHeaderBytes: s.opts.MaxHeaderBytes,
 		ErrorLog:       s.opts.Logger,
 	}
+}
+
+// Run starts the server on the specific address
+func (s *Server) Run(addr string) error {
+	if addr == "" {
+		addr = ":http"
+	}
+
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
+
+	srv := s.newHTTPServer(ln.Addr().String())
 
 	s.serversMux.Lock()
 	s.servers = append(s.servers, srv)
 	s.serversMux.Unlock()
 
-	return srv.ListenAndServe()
+	if s.opts.KeepAlivePeriod == -1 {
+		return srv.Serve(ln)
+	}
+
+	return srv.Serve(&tcpKeepAliveListener{ln.(*net.TCPListener), s.opts.KeepAlivePeriod})
 }
 
 // CertPair is a pair of (cert, key) files to listen on TLS
@@ -130,21 +150,27 @@ func (s *Server) RunTLS(addr string, certPairs []CertPair) error {
 
 	cfg.BuildNameToCertificate()
 
-	srv := &http.Server{
-		Addr:           addr,
-		Handler:        s.r,
-		ReadTimeout:    s.opts.ReadTimeout,
-		WriteTimeout:   s.opts.WriteTimeout, // otherwise it'll time out on slow connections like mine
-		MaxHeaderBytes: s.opts.MaxHeaderBytes,
-		ErrorLog:       s.opts.Logger,
-		TLSConfig:      &cfg,
+	if addr == "" {
+		addr = ":https"
 	}
+
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
+
+	srv := s.newHTTPServer(ln.Addr().String())
+	srv.TLSConfig = &cfg
 
 	s.serversMux.Lock()
 	s.servers = append(s.servers, srv)
 	s.serversMux.Unlock()
 
-	return srv.ListenAndServeTLS("", "")
+	if s.opts.KeepAlivePeriod == -1 {
+		return srv.ServeTLS(ln, "", "")
+	}
+
+	return srv.ServeTLS(&tcpKeepAliveListener{ln.(*net.TCPListener), s.opts.KeepAlivePeriod}, "", "")
 }
 
 // SetKeepAlivesEnabled controls whether HTTP keep-alives are enabled.
@@ -155,6 +181,17 @@ func (s *Server) SetKeepAlivesEnabled(v bool) {
 		srv.SetKeepAlivesEnabled(v)
 	}
 	s.serversMux.Unlock()
+}
+
+// Addrs returns all the listening addresses used by the underlying http.Server(s).
+func (s *Server) Addrs() (out []string) {
+	s.serversMux.Lock()
+	out = make([]string, len(s.servers))
+	for i, srv := range s.servers {
+		out[i] = srv.Addr
+	}
+	s.serversMux.Unlock()
+	return
 }
 
 // Closed returns true if the server is already shutdown/closed
