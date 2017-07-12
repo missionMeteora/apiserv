@@ -9,10 +9,11 @@ import (
 
 // Options are options used in creating the server
 type options struct {
-	ReadTimeout    time.Duration // see http.Server.ReadTimeout
-	WriteTimeout   time.Duration // see http.Server.WriteTimeout
-	MaxHeaderBytes int           // see http.Server.MaxHeaderBytes
-	Logger         *log.Logger
+	ReadTimeout     time.Duration // see http.Server.ReadTimeout
+	WriteTimeout    time.Duration // see http.Server.WriteTimeout
+	KeepAlivePeriod time.Duration // sets the underlying socket's keepalive period, set to -1 to disable
+	MaxHeaderBytes  int           // see http.Server.MaxHeaderBytes
+	Logger          *log.Logger
 
 	RouterOptions *router.Options // Additional options passed to the internal router.Router instance
 }
@@ -55,5 +56,24 @@ func SetErrLogger(v *log.Logger) OptionCallback {
 func SetRouterOptions(v *router.Options) OptionCallback {
 	return func(opt *options) {
 		opt.RouterOptions = v
+	}
+}
+
+// SetKeepAlivePeriod sets the underlying socket's keepalive period,
+// set to -1 to disable socket keepalive.
+// Not to be confused with http keep-alives which is controlled by apiserv.SetKeepAlivesEnabled.
+func SetKeepAlivePeriod(p time.Duration) OptionCallback {
+	return func(opt *options) {
+		opt.KeepAlivePeriod = p
+	}
+}
+
+// SetEnablePanicRecovery sets panic handling in router options.
+func SetEnablePanicRecovery(enable bool) OptionCallback {
+	return func(opt *options) {
+		if opt.RouterOptions == nil {
+			opt.RouterOptions = &router.Options{}
+		}
+		opt.RouterOptions.NoDefaultPanicHandler = enable
 	}
 }
