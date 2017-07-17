@@ -226,6 +226,15 @@ func (ctx *Context) RemoveCookie(name, domain string, forceSecure bool) {
 	ctx.SetCookie(name, "", domain, forceSecure, -1)
 }
 
+// GetCookie returns the given cookie's value.
+func (ctx *Context) GetCookie(name string) (string, bool) {
+	c, err := ctx.Req.Cookie(name)
+	if err != nil {
+		return "", false
+	}
+	return c.Value, true
+}
+
 var ctxPool = sync.Pool{
 	New: func() interface{} { return &Context{} },
 }
