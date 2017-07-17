@@ -1,8 +1,6 @@
 package apiserv
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"log"
 	"net"
@@ -24,7 +22,7 @@ var DefaultOpts = options{
 
 	KeepAlivePeriod: 3 * time.Minute, // default value in net/http
 
-	Logger: log.New(os.Stderr, "APIServer: ", log.Lshortfile),
+	Logger: log.New(os.Stderr, "apiserv: ", log.Lshortfile),
 }
 
 // New returns a new server with the specified options.
@@ -133,44 +131,6 @@ func (s *Server) Run(addr string) error {
 type CertPair struct {
 	CertFile string `json:"certFile"`
 	KeyFile  string `json:"KeyFile"`
-}
-
-// RunTLS starts the server on the specific address, using tls
-func (s *Server) RunTLS(addr string, certPairs []CertPair) error {
-	cfg := tls.Config{RootCAs: x509.NewCertPool()}
-	cfg.Certificates = make([]tls.Certificate, 0, len(certPairs))
-
-	for _, cp := range certPairs {
-		cert, err := tls.LoadX509KeyPair(cp.CertFile, cp.KeyFile)
-		if err != nil {
-			return fmt.Errorf("%s: %v", cp.CertFile, err)
-		}
-		cfg.Certificates = append(cfg.Certificates, cert)
-	}
-
-	cfg.BuildNameToCertificate()
-
-	if addr == "" {
-		addr = ":https"
-	}
-
-	ln, err := net.Listen("tcp", addr)
-	if err != nil {
-		return err
-	}
-
-	srv := s.newHTTPServer(ln.Addr().String())
-	srv.TLSConfig = &cfg
-
-	s.serversMux.Lock()
-	s.servers = append(s.servers, srv)
-	s.serversMux.Unlock()
-
-	if s.opts.KeepAlivePeriod == -1 {
-		return srv.ServeTLS(ln, "", "")
-	}
-
-	return srv.ServeTLS(&tcpKeepAliveListener{ln.(*net.TCPListener), s.opts.KeepAlivePeriod}, "", "")
 }
 
 // SetKeepAlivesEnabled controls whether HTTP keep-alives are enabled.
