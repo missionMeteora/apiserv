@@ -35,7 +35,7 @@ func TestServer(t *testing.T) {
 		panic("well... poo")
 	})
 
-	srv.AddRoute("OPTIONS", "/.*", handler)
+	srv.AllowCORS("/cors", "GET")
 
 	srv.GET("/ping/:id", func(ctx *Context) Response {
 		return NewJSONResponse("pong:" + ctx.Params.Get("id"))
@@ -171,6 +171,19 @@ func TestServer(t *testing.T) {
 		}
 		if s != "pong" {
 			t.Fatalf("expected pong, got %+v", r)
+		}
+	})
+
+	t.Run("CORS", func(t *testing.T) {
+		var (
+			client http.Client
+			req, _ = http.NewRequest(http.MethodOptions, ts.URL+"/cors", nil)
+		)
+		req.Header.Add("Origin", "http://localhost")
+		resp, _ := client.Do(req)
+		resp.Body.Close()
+		if resp.Header.Get("Access-Control-Allow-Methods") != "GET" {
+			t.Fatalf("unexpected headers: %+v", resp.Header)
 		}
 	})
 }
