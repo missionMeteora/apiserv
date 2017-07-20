@@ -35,6 +35,8 @@ func TestServer(t *testing.T) {
 		panic("well... poo")
 	})
 
+	srv.AddRoute("OPTIONS", "/.*", handler)
+
 	srv.GET("/ping/:id", func(ctx *Context) Response {
 		return NewJSONResponse("pong:" + ctx.Params.Get("id"))
 	})
