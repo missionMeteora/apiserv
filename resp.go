@@ -260,3 +260,39 @@ func (r *simpleResp) WriteToCtx(ctx *Context) error {
 	}
 	return err
 }
+
+// NewJSONPResponse returns a new success response (code 200) with the specific data
+func NewJSONPResponse(callbackKey string, data interface{}) *JSONPResponse {
+	return &JSONPResponse{
+		Callback: callbackKey,
+		JSONResponse: JSONResponse{
+			Code: http.StatusOK,
+			Data: data,
+		},
+	}
+}
+
+// JSONPResponse is the default standard api response
+type JSONPResponse struct {
+	JSONResponse
+	Callback string `json:"-"`
+}
+
+// WriteToCtx writes the response to a ResponseWriter
+func (r *JSONPResponse) WriteToCtx(ctx *Context) error {
+	switch r.Code {
+	case 0:
+		if len(r.Errors) > 0 {
+			r.Code = http.StatusBadRequest
+		} else {
+			r.Code = http.StatusOK
+		}
+
+	case http.StatusNoContent: // special case
+		ctx.WriteHeader(204)
+		return nil
+	}
+
+	r.Success = r.Code >= http.StatusOK && r.Code < http.StatusMultipleChoices
+	return ctx.JSONP(r.Code, r.Callback, r)
+}
