@@ -164,6 +164,25 @@ func (ctx *Context) JSON(code int, indent bool, v interface{}) error {
 	return enc.Encode(v)
 }
 
+// JSONP outputs a jsonP object, it is highly recommended to return *Response rather than use this directly.
+// calling this function marks the Context as done, meaning any returned responses won't be written out.
+func (ctx *Context) JSONP(code int, callbackKey string, v interface{}) (err error) {
+	ctx.done = true
+	ctx.SetContentType(MimeJavascript)
+
+	if code > 0 {
+		ctx.WriteHeader(code)
+	}
+
+	var b []byte
+	if b, err = json.Marshal(v); err != nil {
+		return
+	}
+
+	_, err = fmt.Fprintf(ctx, "%s(%s)", callbackKey, string(b))
+	return
+}
+
 // WriteHeader and Write are to implement ResponseWriter and allows ghetto hijacking of http.ServeContent errors,
 // without them we'd end up with plain text errors, we wouldn't want that, would we?
 // WriteHeader implements http.ResponseWriter
