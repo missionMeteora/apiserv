@@ -1,9 +1,12 @@
 package apiserv
 
 import (
+	"encoding/json"
 	"net/http"
 	"os"
 	"path/filepath"
+
+	"github.com/missionMeteora/toolkit/errors"
 )
 
 // FromHTTPHandler returns a Handler from an http.Handler.
@@ -59,4 +62,31 @@ func StaticDirWithLimit(dir, paramName string, limit int) Handler {
 
 		return nil
 	}
+}
+
+// BindResponse will bind a JSON http response from an apiserv endpoint
+func BindResponse(resp *http.Response, val interface{}) (err error) {
+	var r JSONResponse
+	r.Data = val
+	defer resp.Body.Close()
+
+	if err = json.NewDecoder(resp.Body).Decode(&r); err != nil {
+		return
+	}
+
+	if !r.Success {
+		var errl errors.ErrorList
+		for _, v := range r.Errors {
+			errl.Push(v)
+		}
+
+		if err = errl.Err(); err != nil {
+			return
+		}
+
+		// No error provided, utilize the response status for messaging
+		return errors.Error(resp.Status)
+	}
+
+	return
 }
