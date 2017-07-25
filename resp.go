@@ -272,6 +272,39 @@ func NewJSONPResponse(callbackKey string, data interface{}) *JSONPResponse {
 	}
 }
 
+// NewJSONPErrorResponse returns a new error response.
+// each err can be:
+// 1. string or []byte
+// 2. error
+// 3. Error / *Error
+// 4. another response, its Errors will be appended to the returned Response.
+// 5. if errs is empty, it will call http.StatusText(code) and set that as the error.
+func NewJSONPErrorResponse(callbackKey string, code int, errs ...interface{}) *JSONPResponse {
+	if len(errs) == 0 {
+		errs = append(errs, http.StatusText(code))
+	}
+
+	if len(callbackKey) == 0 {
+		callbackKey = "console.error"
+	}
+
+	var (
+		r = &JSONPResponse{
+			JSONResponse: JSONResponse{
+				Code:   code,
+				Errors: make([]*Error, 0, len(errs)),
+			},
+			Callback: callbackKey,
+		}
+	)
+
+	for _, err := range errs {
+		r.appendErr(err)
+	}
+
+	return r
+}
+
 // JSONPResponse is the default standard api response
 type JSONPResponse struct {
 	JSONResponse
@@ -282,11 +315,7 @@ type JSONPResponse struct {
 func (r *JSONPResponse) WriteToCtx(ctx *Context) error {
 	switch r.Code {
 	case 0:
-		if len(r.Errors) > 0 {
-			r.Code = http.StatusBadRequest
-		} else {
-			r.Code = http.StatusOK
-		}
+		r.Code = http.StatusOK
 
 	case http.StatusNoContent: // special case
 		ctx.WriteHeader(204)
@@ -294,5 +323,5 @@ func (r *JSONPResponse) WriteToCtx(ctx *Context) error {
 	}
 
 	r.Success = r.Code >= http.StatusOK && r.Code < http.StatusMultipleChoices
-	return ctx.JSONP(r.Code, r.Callback, r)
+	return ctx.JSONP(http.StatusOK, r.Callback, r)
 }
