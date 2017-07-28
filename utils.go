@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // FromHTTPHandler returns a Handler from an http.Handler.
@@ -58,5 +59,28 @@ func StaticDirWithLimit(dir, paramName string, limit int) Handler {
 		}
 
 		return nil
+	}
+}
+
+// AllowCORS allows CORS responses.
+// If allowedMethods is empty, it will respond with the requested method.
+func AllowCORS(allowedMethods ...string) Handler {
+	ams := strings.Join(allowedMethods, ", ")
+	return func(ctx *Context) Response {
+		rh, wh := ctx.Req.Header, ctx.Header()
+
+		wh.Set("Access-Control-Allow-Origin", rh.Get("Origin"))
+
+		if len(ams) == 0 {
+			wh.Set("Access-Control-Allow-Methods", rh.Get("Access-Control-Request-Method"))
+		} else {
+			wh.Set("Access-Control-Allow-Methods", ams)
+		}
+		if reqHeaders := rh.Get("Access-Control-Request-Headers"); reqHeaders != "" {
+			wh.Set("Access-Control-Allow-Headers", reqHeaders)
+		}
+
+		wh.Set("Access-Control-Max-Age", "86400") // 24 hours
+		return RespOK
 	}
 }

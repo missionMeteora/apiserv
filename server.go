@@ -165,3 +165,8 @@ func (s *Server) Logf(f string, args ...interface{}) {
 		s.opts.Logger.Printf(f, args...)
 	}
 }
+
+// AllowCORS is an alias for s.AddRoute("OPTIONS", path, AllowCORS(allowedMethods...))
+func (s *Server) AllowCORS(path string, allowedMethods ...string) error {
+	return s.AddRoute("OPTIONS", path, AllowCORS(allowedMethods...))
+}
