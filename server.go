@@ -34,21 +34,23 @@ func New(opts ...OptionCallback) *Server {
 	for _, fn := range opts {
 		fn(&srv.opts)
 	}
+	ro := srv.opts.RouterOptions
+	srv.r = router.New(ro)
 
-	srv.r = router.New(srv.opts.RouterOptions)
+	if !ro.NoDefaultPanicHandler {
+		srv.r.PanicHandler = func(w http.ResponseWriter, req *http.Request, v interface{}) {
+			srv.Logf("PANIC (%T): %v", v, v)
+			ctx := getCtx(w, req, nil)
+			defer putCtx(ctx)
 
-	srv.r.PanicHandler = func(w http.ResponseWriter, req *http.Request, v interface{}) {
-		srv.Logf("PANIC (%T): %v", v, v)
-		ctx := getCtx(w, req, nil)
-		defer putCtx(ctx)
+			if srv.PanicHandler != nil {
+				srv.PanicHandler(ctx, v)
+				return
+			}
 
-		if srv.PanicHandler != nil {
-			srv.PanicHandler(ctx, v)
-			return
+			resp := NewJSONErrorResponse(http.StatusInternalServerError, fmt.Sprintf("PANIC (%T): %v", v, v))
+			resp.WriteToCtx(ctx)
 		}
-
-		resp := NewJSONErrorResponse(http.StatusInternalServerError, fmt.Sprintf("PANIC (%T): %v", v, v))
-		resp.WriteToCtx(ctx)
 	}
 
 	srv.r.NotFoundHandler = func(w http.ResponseWriter, req *http.Request, p router.Params) {
