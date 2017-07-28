@@ -16,6 +16,7 @@ var (
 	RespForbidden  Response = NewJSONErrorResponse(http.StatusForbidden)
 	RespBadRequest Response = NewJSONErrorResponse(http.StatusBadRequest)
 	RespEmpty      Response = &simpleResp{code: http.StatusNoContent}
+	RespOK         Response = &simpleResp{code: http.StatusOK}
 	RespRedirRoot           = Redirect("/", false)
 
 	// Break can be returned from a handler to break a handler chain.
