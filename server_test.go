@@ -23,10 +23,13 @@ var testData = []struct {
 }
 
 func TestServer(t *testing.T) {
-	var (
-		srv = New() // don't need the spam with panics for the /panic handler
-		ts  = httptest.NewServer(srv)
-	)
+	var srv *Server
+
+	if testing.Verbose() {
+		srv = New()
+	} else {
+		srv = New(SetErrLogger(nil)) // don't need the spam with panics for the /panic handler
+	}
 
 	srv.GET("/ping", func(ctx *Context) Response {
 		return NewJSONResponse("pong")
@@ -56,6 +59,7 @@ func TestServer(t *testing.T) {
 
 	srv.Use(LogRequests())
 
+	ts := httptest.NewServer(srv)
 	defer ts.Close()
 
 	for _, td := range testData {
