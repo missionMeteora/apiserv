@@ -68,12 +68,12 @@ func SetKeepAlivePeriod(p time.Duration) OptionCallback {
 	}
 }
 
-// SetEnablePanicRecovery sets panic handling in router options.
-func SetEnablePanicRecovery(enable bool) OptionCallback {
+// SetNoCatchPanics toggles catching panics in handlers.
+func SetNoCatchPanics(enable bool) OptionCallback {
 	return func(opt *options) {
 		if opt.RouterOptions == nil {
 			opt.RouterOptions = &router.Options{}
 		}
-		opt.RouterOptions.NoDefaultPanicHandler = !enable
+		opt.RouterOptions.NoCatchPanics = enable
 	}
 }
