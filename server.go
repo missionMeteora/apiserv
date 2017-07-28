@@ -37,7 +37,7 @@ func New(opts ...OptionCallback) *Server {
 	ro := srv.opts.RouterOptions
 	srv.r = router.New(ro)
 
-	if !ro.NoDefaultPanicHandler {
+	if ro == nil || !ro.NoDefaultPanicHandler {
 		srv.r.PanicHandler = func(w http.ResponseWriter, req *http.Request, v interface{}) {
 			srv.Logf("PANIC (%T): %v", v, v)
 			ctx := getCtx(w, req, nil)
