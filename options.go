@@ -74,6 +74,6 @@ func SetEnablePanicRecovery(enable bool) OptionCallback {
 		if opt.RouterOptions == nil {
 			opt.RouterOptions = &router.Options{}
 		}
-		opt.RouterOptions.NoDefaultPanicHandler = enable
+		opt.RouterOptions.NoDefaultPanicHandler = !enable
 	}
 }
