@@ -7,13 +7,22 @@ import (
 	"github.com/missionMeteora/apiserv/router"
 )
 
+// Handler is the default server Handler
+// In a handler chain, returning a non-nil breaks the chain.
+type Handler func(ctx *Context) Response
+
+// MiddlewareHandler is a middleware handler, returning nil breaks the middleware chain.
+// calling next will execute all the non-middleware handlers in the group.
+// next() returns true if one of the handlers broke the handler chain.
+type MiddlewareHandler func(ctx *Context, next func() (brokeEarly bool)) Response
+
 // Group represents a handler group.
 type Group interface {
 	// Use adds more middleware to the current group.
-	Use(mw ...Handler)
+	Use(mw ...MiddlewareHandler)
 
 	// Group returns a sub-group starting at the specified path and using the specified middlewares.
-	Group(path string, mw ...Handler) Group
+	Group(path string, mw ...MiddlewareHandler) Group
 
 	// AddRoute adds a handler (or more) to the specific method and path
 	// it is NOT safe to call this once you call one of the run functions
@@ -37,13 +46,13 @@ type Group interface {
 }
 
 type group struct {
-	mw   []Handler
+	mw   []MiddlewareHandler
 	path string
 	s    *Server
 }
 
 // Use adds more middleware to the current group.
-func (g *group) Use(mw ...Handler) {
+func (g *group) Use(mw ...MiddlewareHandler) {
 	g.mw = append(g.mw, mw...)
 }
 
@@ -103,7 +112,7 @@ func (g *group) StaticFile(path, localPath string) error {
 }
 
 // group returns a sub-handler group based on the current group's middleware
-func (g *group) Group(path string, mw ...Handler) Group {
+func (g *group) Group(path string, mw ...MiddlewareHandler) Group {
 	return &group{
 		mw:   append(g.mw[:len(g.mw):len(g.mw)], mw...),
 		path: joinPath(g.path, path),
@@ -132,11 +141,27 @@ type groupHandlerChain struct {
 }
 
 func (ghc *groupHandlerChain) Serve(rw http.ResponseWriter, req *http.Request, p router.Params) {
-	ctx := getCtx(rw, req, p)
+	var (
+		ctx        = getCtx(rw, req, p, ghc.g.s)
+		calledNext bool
+	)
 	defer putCtx(ctx)
 
+	next := func() (broke bool) {
+		calledNext = true
+		for _, h := range ghc.hc {
+			if r := h(ctx); r != nil {
+				if !ctx.done && r != Break {
+					r.WriteToCtx(ctx)
+				}
+				return true
+			}
+		}
+		return
+	}
+
 	for _, h := range ghc.g.mw {
-		if r := h(ctx); r != nil {
+		if r := h(ctx, next); r != nil {
 			if !ctx.done && r != Break {
 				r.WriteToCtx(ctx)
 			}
@@ -144,12 +169,7 @@ func (ghc *groupHandlerChain) Serve(rw http.ResponseWriter, req *http.Request, p
 		}
 	}
 
-	for _, h := range ghc.hc {
-		if r := h(ctx); r != nil {
-			if !ctx.done && r != Break {
-				r.WriteToCtx(ctx)
-			}
-			return
-		}
+	if !calledNext { // in case we don't have any middleware or they didn't call next
+		next()
 	}
 }

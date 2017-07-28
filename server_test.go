@@ -24,7 +24,7 @@ var testData = []struct {
 
 func TestServer(t *testing.T) {
 	var (
-		srv = New(SetErrLogger(nil)) // don't need the spam with panics for the /panic handler
+		srv = New() // don't need the spam with panics for the /panic handler
 		ts  = httptest.NewServer(srv)
 	)
 
@@ -46,13 +46,15 @@ func TestServer(t *testing.T) {
 
 	srv.StaticFile("/README.md", "./router/README.md")
 
-	srv.Group("/mw", func(ctx *Context) Response {
+	srv.Group("/mw", func(ctx *Context, _ func() bool) Response {
 		ctx.Set("data", "test")
 		return nil
 	}).GET("/sub", func(ctx *Context) Response {
 		v, _ := ctx.Get("data").(string)
 		return NewJSONResponse("data:" + v)
 	})
+
+	srv.Use(LogRequests())
 
 	defer ts.Close()
 

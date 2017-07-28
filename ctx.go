@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,6 +35,8 @@ type Context struct {
 	status             int
 	hijackServeContent bool
 	done               bool
+
+	s *Server
 }
 
 // Param is a shorthand for ctx.Params.Get(name).
@@ -183,6 +187,34 @@ func (ctx *Context) JSONP(code int, callbackKey string, v interface{}) (err erro
 	return
 }
 
+func (ctx *Context) ClientIP() string {
+	h := ctx.Req.Header
+
+	ip := strings.TrimSpace(h.Get("X-Real-Ip"))
+	if len(ip) > 0 {
+		return ip
+	}
+
+	ip = strings.TrimSpace(h.Get("X-Forwarded-For"))
+	if index := strings.IndexByte(ip, ','); index >= 0 {
+		if ip = ip[0:index]; len(ip) > 0 {
+			return ip
+		}
+	}
+
+	ip = strings.TrimSpace(ip)
+
+	if len(ip) > 0 {
+		return ip
+	}
+
+	if ip, _, err := net.SplitHostPort(strings.TrimSpace(ctx.Req.RemoteAddr)); err == nil {
+		return ip
+	}
+
+	return ""
+}
+
 // WriteHeader and Write are to implement ResponseWriter and allows ghetto hijacking of http.ServeContent errors,
 // without them we'd end up with plain text errors, we wouldn't want that, would we?
 // WriteHeader implements http.ResponseWriter
@@ -207,6 +239,9 @@ func (ctx *Context) Write(p []byte) (int, error) {
 
 // Status returns last value written using WriteHeader.
 func (ctx *Context) Status() int {
+	if ctx.status == 0 {
+		return 200
+	}
 	return ctx.status
 }
 
@@ -258,23 +293,16 @@ var ctxPool = sync.Pool{
 	New: func() interface{} { return &Context{} },
 }
 
-func getCtx(rw http.ResponseWriter, req *http.Request, p router.Params) *Context {
+func getCtx(rw http.ResponseWriter, req *http.Request, p router.Params, s *Server) *Context {
 	ctx, ok := ctxPool.Get().(*Context)
 	if !ok {
 		ctx = &Context{}
 	}
-	ctx.ResponseWriter, ctx.Req, ctx.Params = rw, req, p
+	ctx.ResponseWriter, ctx.Req, ctx.Params, ctx.s = rw, req, p, s
 	return ctx
 }
 
 func putCtx(ctx *Context) {
-	// TODO(OneOfOne):
-	/// use *ctx = Context{} when https://github.com/golang/go/issues/19677 gets fixed or 1.9 comes out.
-	ctx.ResponseWriter, ctx.Req, ctx.Params, ctx.data = nil, nil, nil, nil
-	ctx.done, ctx.hijackServeContent, ctx.status = false, false, 0
+	*ctx = Context{}
 	ctxPool.Put(ctx)
 }
-
-// Handler is the default server Handler
-// In a handler chain, returning a non-nil breaks the chain.
-type Handler func(ctx *Context) Response
