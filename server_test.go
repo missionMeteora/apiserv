@@ -44,6 +44,16 @@ func TestServer(t *testing.T) {
 		return NewJSONResponse("pong:" + ctx.Params.Get("id"))
 	})
 
+	srv.POST("/ping/:id", func(ctx *Context) Response {
+		var req struct {
+			Ping string `json:"ping"`
+		}
+		if err := ctx.BindJSON(&req); err != nil {
+			return NewJSONErrorResponse(500, err)
+		}
+		return NewJSONResponse("pong:" + ctx.Params.Get("id") + ":" + req.Ping)
+	})
+
 	srv.Static("/s/", "./", false)
 	srv.Static("/s-std/", "./", true)
 
@@ -190,6 +200,22 @@ func TestServer(t *testing.T) {
 		resp.Body.Close()
 		if resp.Header.Get("Access-Control-Allow-Methods") != "GET" {
 			t.Fatalf("unexpected headers: %+v", resp.Header)
+		}
+	})
+
+	t.Run("POST", func(t *testing.T) {
+		resp, err := http.Post(ts.URL+"/ping/hello", MimeJSON, strings.NewReader(`{"ping": "world"}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		var s string
+
+		if _, err = ReadJSONResponse(resp.Body, &s); err != nil {
+			t.Fatal(err)
+		}
+		if s != "pong:hello:world" {
+			t.Fatalf("expected pong:hello:world, got %#+v", s)
 		}
 	})
 }
