@@ -1,6 +1,7 @@
 package apiserv
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -293,6 +294,16 @@ func (ctx *Context) GetCookie(name string) (string, bool) {
 		return "", false
 	}
 	return c.Value, true
+}
+
+// StdContext returns the context.Context associated with this Context's Request.
+func (ctx *Context) StdContext() context.Context {
+	return ctx.Req.Context()
+}
+
+// SetStdContext sets the current Context Request's context.Context.
+func (ctx *Context) SetStdContext(c context.Context) {
+	ctx.Req = ctx.Req.WithContext(c)
 }
 
 var ctxPool = sync.Pool{
