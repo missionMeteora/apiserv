@@ -49,7 +49,7 @@ func TestServer(t *testing.T) {
 
 	srv.StaticFile("/README.md", "./router/README.md")
 
-	srv.Group("/mw", func(ctx *Context, _ func() bool) Response {
+	srv.Group("/mw", func(ctx *Context) Response {
 		ctx.Set("data", "test")
 		return nil
 	}).GET("/sub", func(ctx *Context) Response {
@@ -57,7 +57,7 @@ func TestServer(t *testing.T) {
 		return NewJSONResponse("data:" + v)
 	})
 
-	srv.Use(LogRequests())
+	srv.Use(LogRequests(true))
 
 	ts := httptest.NewServer(srv)
 	defer ts.Close()

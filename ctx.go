@@ -36,7 +36,8 @@ type Context struct {
 	hijackServeContent bool
 	done               bool
 
-	s *Server
+	s    *Server
+	next func() Response
 }
 
 // Param is a shorthand for ctx.Params.Get(name).
@@ -211,6 +212,13 @@ func (ctx *Context) ClientIP() string {
 	}
 
 	return ""
+}
+
+// ExecuteHandlers() is a middleware-only func to execute all the handlers in the group and return before the next middleware.
+// will panic if called from a handler.
+// brokeEarly will be true if one of the
+func (ctx *Context) ExecuteHandlers() (resp Response) {
+	return ctx.next()
 }
 
 // WriteHeader and Write are to implement ResponseWriter and allows ghetto hijacking of http.ServeContent errors,
