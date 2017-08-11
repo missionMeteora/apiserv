@@ -296,7 +296,10 @@ func getCtx(rw http.ResponseWriter, req *http.Request, p router.Params, s *Serve
 	if !ok {
 		ctx = &Context{}
 	}
-	ctx.ResponseWriter, ctx.Req, ctx.Params, ctx.s = rw, req, p, s
+
+	ctx.ResponseWriter, ctx.Req = rw, req
+	ctx.Params, ctx.s = p, s
+
 	return ctx
 }
 
