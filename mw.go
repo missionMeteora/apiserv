@@ -3,9 +3,9 @@ package apiserv
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"sync/atomic"
 	"time"
 )
@@ -18,6 +18,7 @@ func LogRequests(logJSONRequests bool) Handler {
 			url   = req.URL
 			start = time.Now()
 			id    = atomic.AddUint64(&reqID, 1)
+			extra string
 		)
 
 		if logJSONRequests {
@@ -31,9 +32,9 @@ func LogRequests(logJSONRequests bool) Handler {
 				if ln := buf.Len(); ln > 0 {
 					switch buf.Bytes()[0] {
 					case '[', '{', 'n': // [], {} and nullable
-						log.Printf("[reqID:%5d] %s: %s\n\tHeaders: %s\n\tRequest (%d): %s", id, m, ctx.Path(), j, ln, buf.String())
+						extra = fmt.Sprintf("\n\tHeaders: %s\n\tRequest (%d): %s", j, ln, buf.String())
 					default:
-						log.Printf("[reqID:%5d] %s: %s\n\t\n\tHeaders: %s\n\tRequest (%d): <binary>", id, m, ctx.Path(), j, ln)
+						extra = fmt.Sprintf("\n\tHeaders: %s\n\tRequest (%d): <binary>", j, buf.Len())
 					}
 				}
 			}
@@ -41,7 +42,7 @@ func LogRequests(logJSONRequests bool) Handler {
 
 		ctx.ExecuteHandlers()
 
-		ctx.s.Logf("[%s] [%d] %s %s [%s]", ctx.ClientIP(), ctx.Status(), req.Method, url.Path, time.Since(start))
+		ctx.s.Logf("[reqID:%d] [%s] [%d] %s %s [%s]%s", id, ctx.ClientIP(), ctx.Status(), req.Method, url.Path, time.Since(start), extra)
 		return nil
 	}
 }
