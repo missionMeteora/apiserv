@@ -190,22 +190,20 @@ func (ctx *Context) JSONP(code int, callbackKey string, v interface{}) (err erro
 func (ctx *Context) ClientIP() string {
 	h := ctx.Req.Header
 
-	ip := strings.TrimSpace(h.Get("X-Real-Ip"))
-	if len(ip) > 0 {
-		return ip
+	// handle proxies
+	if ip := h.Get("X-Real-Ip"); ip != "" {
+		return strings.TrimSpace(ip)
 	}
 
-	ip = strings.TrimSpace(h.Get("X-Forwarded-For"))
-	if index := strings.IndexByte(ip, ','); index >= 0 {
-		if ip = ip[0:index]; len(ip) > 0 {
+	if ip := h.Get("X-Forwarded-For"); ip != "" {
+		if index := strings.IndexByte(ip, ','); index >= 0 {
+			if ip = strings.TrimSpace(ip[:index]); len(ip) > 0 {
+				return ip
+			}
+		}
+		if ip = strings.TrimSpace(ip); ip != "" {
 			return ip
 		}
-	}
-
-	ip = strings.TrimSpace(ip)
-
-	if len(ip) > 0 {
-		return ip
 	}
 
 	if ip, _, err := net.SplitHostPort(strings.TrimSpace(ctx.Req.RemoteAddr)); err == nil {
