@@ -11,10 +11,10 @@ import (
 // In a handler chain, returning a non-nil breaks the chain.
 type Handler func(ctx *Context) Response
 
-// MiddlewareHandler is a middleware handler, returning nil breaks the middleware chain.
-// calling next will execute all the non-middleware handlers in the group.
-// next() returns true if one of the handlers broke the handler chain.
-type MiddlewareHandler func(ctx *Context, next func() (brokeEarly bool)) Response
+// MiddlewareHandler is a middleware handler, returning non-nil breaks the middleware chain,
+// and stops the handlers unelss executeHandlers() was called.
+// executeHandlers() returns true if one of the handlers broke the handler chain.
+type MiddlewareHandler func(ctx *Context, executeHandlers func() (brokeEarly bool)) Response
 
 // Group represents a handler group.
 type Group interface {
@@ -142,7 +142,8 @@ type groupHandlerChain struct {
 
 func (ghc *groupHandlerChain) Serve(rw http.ResponseWriter, req *http.Request, p router.Params) {
 	var (
-		ctx        = getCtx(rw, req, p, ghc.g.s)
+		ctx = getCtx(rw, req, p, ghc.g.s)
+
 		calledNext bool
 	)
 	defer putCtx(ctx)
