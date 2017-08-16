@@ -1,11 +1,14 @@
 package apiserv
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,6 +36,9 @@ type Context struct {
 	status             int
 	hijackServeContent bool
 	done               bool
+
+	s    *Server
+	next func() Response
 }
 
 // Param is a shorthand for ctx.Params.Get(name).
@@ -183,6 +189,39 @@ func (ctx *Context) JSONP(code int, callbackKey string, v interface{}) (err erro
 	return
 }
 
+func (ctx *Context) ClientIP() string {
+	h := ctx.Req.Header
+
+	// handle proxies
+	if ip := h.Get("X-Real-Ip"); ip != "" {
+		return strings.TrimSpace(ip)
+	}
+
+	if ip := h.Get("X-Forwarded-For"); ip != "" {
+		if index := strings.IndexByte(ip, ','); index >= 0 {
+			if ip = strings.TrimSpace(ip[:index]); len(ip) > 0 {
+				return ip
+			}
+		}
+		if ip = strings.TrimSpace(ip); ip != "" {
+			return ip
+		}
+	}
+
+	if ip, _, err := net.SplitHostPort(strings.TrimSpace(ctx.Req.RemoteAddr)); err == nil {
+		return ip
+	}
+
+	return ""
+}
+
+// ExecuteHandlers() is a middleware-only func to execute all the handlers in the group and return before the next middleware.
+// will panic if called from a handler.
+// brokeEarly will be true if one of the
+func (ctx *Context) ExecuteHandlers() (resp Response) {
+	return ctx.next()
+}
+
 // WriteHeader and Write are to implement ResponseWriter and allows ghetto hijacking of http.ServeContent errors,
 // without them we'd end up with plain text errors, we wouldn't want that, would we?
 // WriteHeader implements http.ResponseWriter
@@ -207,6 +246,9 @@ func (ctx *Context) Write(p []byte) (int, error) {
 
 // Status returns last value written using WriteHeader.
 func (ctx *Context) Status() int {
+	if ctx.status == 0 {
+		return 200
+	}
 	return ctx.status
 }
 
@@ -254,27 +296,33 @@ func (ctx *Context) GetCookie(name string) (string, bool) {
 	return c.Value, true
 }
 
+// StdContext returns the context.Context associated with this Context's Request.
+func (ctx *Context) StdContext() context.Context {
+	return ctx.Req.Context()
+}
+
+// SetStdContext sets the current Context Request's context.Context.
+func (ctx *Context) SetStdContext(c context.Context) {
+	ctx.Req = ctx.Req.WithContext(c)
+}
+
 var ctxPool = sync.Pool{
 	New: func() interface{} { return &Context{} },
 }
 
-func getCtx(rw http.ResponseWriter, req *http.Request, p router.Params) *Context {
+func getCtx(rw http.ResponseWriter, req *http.Request, p router.Params, s *Server) *Context {
 	ctx, ok := ctxPool.Get().(*Context)
 	if !ok {
 		ctx = &Context{}
 	}
-	ctx.ResponseWriter, ctx.Req, ctx.Params = rw, req, p
+
+	ctx.ResponseWriter, ctx.Req = rw, req
+	ctx.Params, ctx.s = p, s
+
 	return ctx
 }
 
 func putCtx(ctx *Context) {
-	// TODO(OneOfOne):
-	/// use *ctx = Context{} when https://github.com/golang/go/issues/19677 gets fixed or 1.9 comes out.
-	ctx.ResponseWriter, ctx.Req, ctx.Params, ctx.data = nil, nil, nil, nil
-	ctx.done, ctx.hijackServeContent, ctx.status = false, false, 0
+	*ctx = Context{}
 	ctxPool.Put(ctx)
 }
-
-// Handler is the default server Handler
-// In a handler chain, returning a non-nil breaks the chain.
-type Handler func(ctx *Context) Response

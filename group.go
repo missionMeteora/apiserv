@@ -7,12 +7,17 @@ import (
 	"github.com/missionMeteora/apiserv/router"
 )
 
+// Handler is the default server Handler
+// In a handler chain, returning a non-nil breaks the chain.
+type Handler func(ctx *Context) Response
+
 // Group represents a handler group.
 type Group interface {
 	// Use adds more middleware to the current group.
+	// returning non-nil from a middleware returns early and doesn't execute the handlers.
 	Use(mw ...Handler)
 
-	// Group returns a sub-group starting at the specified path and using the specified middlewares.
+	// Group returns a sub-group starting at the specified path with this group's middlewares + any other ones.
 	Group(path string, mw ...Handler) Group
 
 	// AddRoute adds a handler (or more) to the specific method and path
@@ -132,8 +137,21 @@ type groupHandlerChain struct {
 }
 
 func (ghc *groupHandlerChain) Serve(rw http.ResponseWriter, req *http.Request, p router.Params) {
-	ctx := getCtx(rw, req, p)
+	ctx := getCtx(rw, req, p, ghc.g.s)
 	defer putCtx(ctx)
+
+	ctx.next = func() (r Response) {
+		ctx.next = nil
+		for _, h := range ghc.hc {
+			if r = h(ctx); r != nil {
+				if !ctx.done && r != Break {
+					r.WriteToCtx(ctx)
+				}
+				return r
+			}
+		}
+		return
+	}
 
 	for _, h := range ghc.g.mw {
 		if r := h(ctx); r != nil {
@@ -144,12 +162,7 @@ func (ghc *groupHandlerChain) Serve(rw http.ResponseWriter, req *http.Request, p
 		}
 	}
 
-	for _, h := range ghc.hc {
-		if r := h(ctx); r != nil {
-			if !ctx.done && r != Break {
-				r.WriteToCtx(ctx)
-			}
-			return
-		}
+	if ctx.next != nil { // in case we don't have any middleware or they didn't call next
+		ctx.next()
 	}
 }

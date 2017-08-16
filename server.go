@@ -6,6 +6,9 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"runtime"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -22,7 +25,7 @@ var DefaultOpts = options{
 
 	KeepAlivePeriod: 3 * time.Minute, // default value in net/http
 
-	Logger: log.New(os.Stderr, "apiserv: ", log.Lshortfile),
+	Logger: log.New(os.Stderr, "apiserv: ", 0),
 }
 
 // New returns a new server with the specified options.
@@ -39,7 +42,7 @@ func New(opts ...OptionCallback) *Server {
 
 	srv.r.PanicHandler = func(w http.ResponseWriter, req *http.Request, v interface{}) {
 		srv.Logf("PANIC (%T): %v", v, v)
-		ctx := getCtx(w, req, nil)
+		ctx := getCtx(w, req, nil, srv)
 		defer putCtx(ctx)
 
 		if srv.PanicHandler != nil {
@@ -52,7 +55,7 @@ func New(opts ...OptionCallback) *Server {
 	}
 
 	srv.r.NotFoundHandler = func(w http.ResponseWriter, req *http.Request, p router.Params) {
-		ctx := getCtx(w, req, p)
+		ctx := getCtx(w, req, p, srv)
 		defer putCtx(ctx)
 
 		if srv.NotFoundHandler != nil {
@@ -161,8 +164,20 @@ func (s *Server) Closed() bool {
 
 // Logf logs to the default server logger if set
 func (s *Server) Logf(f string, args ...interface{}) {
+	s.logfStack(3, f, args...)
+}
+
+func (s *Server) logfStack(n int, f string, args ...interface{}) {
 	if s.opts.Logger != nil {
-		s.opts.Logger.Printf(f, args...)
+		_, file, line, ok := runtime.Caller(n - 1)
+		if !ok {
+			file = "???"
+			line = 0
+		}
+		if idx := strings.LastIndex(file, "/"); idx != -1 {
+			file = file[idx+1:]
+		}
+		s.opts.Logger.Printf(file+":"+strconv.Itoa(line)+": "+f, args...)
 	}
 }
 
