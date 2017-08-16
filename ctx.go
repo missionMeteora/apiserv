@@ -37,8 +37,9 @@ type Context struct {
 	hijackServeContent bool
 	done               bool
 
-	s    *Server
-	next func() Response
+	s      *Server
+	next   func() Response
+	nextMW func() Response
 }
 
 // Param is a shorthand for ctx.Params.Get(name).
@@ -215,11 +216,29 @@ func (ctx *Context) ClientIP() string {
 	return ""
 }
 
-// ExecuteHandlers() is a middleware-only func to execute all the handlers in the group and return before the next middleware.
+// NextMiddleware() is a middleware-only func to execute all the other middlewares in the group and return before the handlers.
 // will panic if called from a handler.
-// brokeEarly will be true if one of the
-func (ctx *Context) ExecuteHandlers() (resp Response) {
-	return ctx.next()
+func (ctx *Context) NextMiddleware() Response {
+	if ctx.nextMW != nil {
+		return ctx.nextMW()
+	}
+	return nil
+}
+
+// NextHandler() is a func to execute all the handlers in the group up until one returns a Response.
+func (ctx *Context) NextHandler() Response {
+	if ctx.next != nil {
+		return ctx.next()
+	}
+	return nil
+}
+
+// Next is a QoL function that calls NextMiddleware() then NextHandler() if NextMiddleware() didn't return a response.
+func (ctx *Context) Next() Response {
+	if r := ctx.NextMiddleware(); r != nil {
+		return r
+	}
+	return ctx.NextHandler()
 }
 
 // WriteHeader and Write are to implement ResponseWriter and allows ghetto hijacking of http.ServeContent errors,

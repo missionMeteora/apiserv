@@ -40,7 +40,7 @@ func LogRequests(logJSONRequests bool) Handler {
 			}
 		}
 
-		ctx.ExecuteHandlers()
+		ctx.Next()
 
 		ctx.s.Logf("[reqID:%d] [%s] [%d] %s %s [%s]%s", id, ctx.ClientIP(), ctx.Status(), req.Method, url.Path, time.Since(start), extra)
 		return nil
