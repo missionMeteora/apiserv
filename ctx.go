@@ -189,6 +189,7 @@ func (ctx *Context) JSONP(code int, callbackKey string, v interface{}) (err erro
 	return
 }
 
+// ClientIP returns the current client ip, accounting for X-Real-Ip and X-forwarded-For headers as well.
 func (ctx *Context) ClientIP() string {
 	h := ctx.Req.Header
 
