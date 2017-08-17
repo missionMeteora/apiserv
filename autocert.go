@@ -8,7 +8,7 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 )
 
-// RunTLSAutoCert enables automatic support for LetsEncrypt, using the optional passed domains list.
+// RunAutoCert enables automatic support for LetsEncrypt, using the optional passed domains list.
 // certCacheDir is where the certificates will be cached, defaults to "./autocert".
 // Note that it must always run on ":https" so the addr param is omitted.
 func (s *Server) RunAutoCert(certCacheDir string, domains ...string) error {
