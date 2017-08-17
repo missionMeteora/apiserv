@@ -22,6 +22,35 @@ var testData = []struct {
 	{"/mw/sub", NewJSONResponse("data:test")},
 }
 
+func newServerAndWait(t *testing.T, addr string) *Server {
+	var (
+		s     *Server
+		timer = time.After(time.Second)
+	)
+	if testing.Verbose() {
+		s = New()
+	} else {
+		s = New(SetErrLogger(nil)) // don't need the spam with panics for the /panic handler
+	}
+	go s.Run("127.0.0.1:0")
+	for {
+		select {
+		case <-timer:
+			t.Fatalf("still no address after 1 second")
+		default:
+		}
+		addrs := s.Addrs()
+		if len(addrs) == 0 {
+			time.Sleep(time.Millisecond)
+			continue
+		}
+		if strings.HasPrefix(addrs[0], ":0") {
+			t.Fatalf("unexpected addr: %v", addrs[0])
+		}
+		return s
+	}
+}
+
 func TestServer(t *testing.T) {
 	var srv *Server
 
@@ -221,27 +250,6 @@ func TestServer(t *testing.T) {
 }
 
 func TestListenZero(t *testing.T) {
-	var (
-		s     = New()
-		timer = time.After(time.Second)
-	)
+	s := newServerAndWait(t, "localhost:0")
 	defer s.Shutdown(0)
-	go s.Run("127.0.0.1:0")
-	for {
-		select {
-		case <-timer:
-			t.Fatalf("still no address after 1 second")
-		default:
-		}
-		addrs := s.Addrs()
-		if len(addrs) == 0 {
-			time.Sleep(time.Millisecond)
-			continue
-		}
-		if strings.HasPrefix(addrs[0], ":0") {
-			t.Fatalf("unexpected addr: %v", addrs[0])
-		}
-		t.Logf("addrs: %s", addrs[0])
-		break
-	}
 }

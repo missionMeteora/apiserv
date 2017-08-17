@@ -137,32 +137,43 @@ type groupHandlerChain struct {
 }
 
 func (ghc *groupHandlerChain) Serve(rw http.ResponseWriter, req *http.Request, p router.Params) {
-	ctx := getCtx(rw, req, p, ghc.g.s)
+	var (
+		ctx = getCtx(rw, req, p, ghc.g.s)
+
+		mwIdx, hIdx int
+	)
 	defer putCtx(ctx)
 
 	ctx.next = func() (r Response) {
-		ctx.next = nil
-		for _, h := range ghc.hc {
+		for hIdx < len(ghc.hc) {
+			h := ghc.hc[hIdx]
+			hIdx++
 			if r = h(ctx); r != nil {
 				if !ctx.done && r != Break {
 					r.WriteToCtx(ctx)
 				}
-				return r
+				break
 			}
 		}
+		ctx.next = nil
 		return
 	}
 
-	for _, h := range ghc.g.mw {
-		if r := h(ctx); r != nil {
-			if !ctx.done && r != Break {
-				r.WriteToCtx(ctx)
+	ctx.nextMW = func() (r Response) {
+		for mwIdx < len(ghc.g.mw) {
+			h := ghc.g.mw[mwIdx]
+			mwIdx++
+			if r = h(ctx); r != nil {
+				if !ctx.done && r != Break {
+					r.WriteToCtx(ctx)
+				}
+				break
 			}
-			return
 		}
+		ctx.nextMW = nil
+
+		return
 	}
 
-	if ctx.next != nil { // in case we don't have any middleware or they didn't call next
-		ctx.next()
-	}
+	ctx.Next()
 }
