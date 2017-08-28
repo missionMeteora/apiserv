@@ -32,7 +32,10 @@ func newServerAndWait(t *testing.T, addr string) *Server {
 	} else {
 		s = New(SetErrLogger(nil)) // don't need the spam with panics for the /panic handler
 	}
-	go s.Run("127.0.0.1:0")
+	if addr == "" {
+		addr = "127.0.0.1:0"
+	}
+	go s.Run(addr)
 	for {
 		select {
 		case <-timer:
@@ -250,6 +253,6 @@ func TestServer(t *testing.T) {
 }
 
 func TestListenZero(t *testing.T) {
-	s := newServerAndWait(t, "localhost:0")
+	s := newServerAndWait(t, "")
 	defer s.Shutdown(0)
 }

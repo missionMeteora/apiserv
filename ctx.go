@@ -31,7 +31,7 @@ type Context struct {
 	Req    *http.Request
 	http.ResponseWriter
 
-	data map[string]interface{}
+	data ctxValues
 
 	status             int
 	hijackServeContent bool
@@ -54,16 +54,12 @@ func (ctx *Context) Query(key string) string {
 
 // Get returns a context value
 func (ctx *Context) Get(key string) interface{} {
-	return ctx.data[key]
+	return ctx.data.Get(key)
 }
 
 // Set sets a context value, useful in passing data to other handlers down the chain
 func (ctx *Context) Set(key string, val interface{}) {
-	if ctx.data == nil {
-		ctx.data = make(map[string]interface{})
-	}
-
-	ctx.data[key] = val
+	ctx.data = ctx.data.Set(key, val)
 }
 
 // WriteReader outputs the data from the passed reader with optional content-type.
@@ -217,7 +213,7 @@ func (ctx *Context) ClientIP() string {
 	return ""
 }
 
-// NextMiddleware() is a middleware-only func to execute all the other middlewares in the group and return before the handlers.
+// NextMiddleware is a middleware-only func to execute all the other middlewares in the group and return before the handlers.
 // will panic if called from a handler.
 func (ctx *Context) NextMiddleware() Response {
 	if ctx.nextMW != nil {
@@ -226,7 +222,7 @@ func (ctx *Context) NextMiddleware() Response {
 	return nil
 }
 
-// NextHandler() is a func to execute all the handlers in the group up until one returns a Response.
+// NextHandler is a func to execute all the handlers in the group up until one returns a Response.
 func (ctx *Context) NextHandler() Response {
 	if ctx.next != nil {
 		return ctx.next()
@@ -276,44 +272,81 @@ func (ctx *Context) Status() int {
 func (ctx *Context) Done() bool { return ctx.done }
 
 // SetCookie sets an http-only cookie using the passed name, value and domain.
+// Returns an error if there was a problem encoding the value.
 // if forceSecure is true, it will set the Secure flag to true, otherwise it sets it based on the connection.
 // if duration == -1, it sets expires to 10 years in the past, if 0 it gets ignored (aka session-only cookie),
 // if duration > 0, the expiration date gets set to now() + duration.
 // Note that for more complex options, you can use http.SetCookie(ctx, &http.Cookie{...}).
-func (ctx *Context) SetCookie(name, value, domain string, forceSecure bool, duration time.Duration) {
+func (ctx *Context) SetCookie(name string, value interface{}, domain string, forceHTTPS bool, duration time.Duration) (err error) {
+	var encValue string
+	if sc := GetSecureCookie(ctx); sc != nil {
+		if encValue, err = sc.Encode(name, value); err != nil {
+			return
+		}
+	} else if s, ok := value.(string); ok {
+		encValue = s
+	} else if encValue, err = jsonMarshal(value); err != nil {
+		return
+	}
+
 	cookie := &http.Cookie{
 		Path:     "/",
 		Name:     name,
-		Value:    value,
+		Value:    encValue,
 		Domain:   domain,
 		HttpOnly: true,
-		Secure:   forceSecure || ctx.Req.TLS != nil,
+		Secure:   forceHTTPS || ctx.Req.TLS != nil,
 	}
 
 	switch duration {
 	case 0: // session only
 	case -1:
-		cookie.Expires = time.Now().UTC().AddDate(-10, 0, 0)
+		cookie.Expires = nukeCookieDate
 	default:
 		cookie.Expires = time.Now().UTC().Add(duration)
 
 	}
 
 	http.SetCookie(ctx, cookie)
+	return
 }
 
-// RemoveCookie is an alias to ctx.SetCookie(name, "", domain, forceSecure, -1).
-func (ctx *Context) RemoveCookie(name, domain string, forceSecure bool) {
-	ctx.SetCookie(name, "", domain, forceSecure, -1)
+// RemoveCookie deletes the given cookie and sets its expires date in the past.
+func (ctx *Context) RemoveCookie(name string) {
+	http.SetCookie(ctx, &http.Cookie{
+		Path:     "/",
+		Name:     name,
+		Value:    "::deleted::",
+		HttpOnly: true,
+		Expires:  nukeCookieDate,
+	})
 }
 
 // GetCookie returns the given cookie's value.
-func (ctx *Context) GetCookie(name string) (string, bool) {
+func (ctx *Context) GetCookie(name string) (out string, ok bool) {
 	c, err := ctx.Req.Cookie(name)
 	if err != nil {
-		return "", false
+		return
+	}
+	if sc := GetSecureCookie(ctx); sc != nil {
+		ok = sc.Decode(name, c.Value, &out) == nil
+		return
 	}
 	return c.Value, true
+}
+
+// GetCookieValue unmarshals a cookie, only needed if you stored an object for the cookie not a string.
+func (ctx *Context) GetCookieValue(name string, valDst interface{}) error {
+	c, err := ctx.Req.Cookie(name)
+	if err != nil {
+		return err
+	}
+
+	if sc := GetSecureCookie(ctx); sc != nil {
+		return sc.Decode(name, c.Value, valDst)
+	}
+
+	return json.Unmarshal([]byte(c.Value), valDst)
 }
 
 // StdContext returns the context.Context associated with this Context's Request.

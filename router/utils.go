@@ -30,7 +30,7 @@ func splitPathToParts(p string) (pp string, rest []nodePart, num, stars int) {
 			if len(pp) > 0 {
 				n := p[last+1 : i]
 				if ln := len(n); ln > 0 {
-					switch c := n[0]; c {
+					switch c = n[0]; c {
 					case ':', '*':
 						if ln > 1 {
 							rest = append(rest, nodePart{n[1:], c})

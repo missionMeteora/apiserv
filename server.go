@@ -29,14 +29,15 @@ var DefaultOpts = options{
 }
 
 // New returns a new server with the specified options.
-func New(opts ...OptionCallback) *Server {
+func New(opts ...Option) *Server {
 	srv := &Server{
 		opts: DefaultOpts,
 	}
 
-	for _, fn := range opts {
-		fn(&srv.opts)
+	for _, opt := range opts {
+		opt.apply(&srv.opts)
 	}
+
 	ro := srv.opts.RouterOptions
 	srv.r = router.New(ro)
 
@@ -96,13 +97,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func (s *Server) newHTTPServer(addr string) *http.Server {
+	opts := &s.opts
 	return &http.Server{
 		Addr:           addr,
 		Handler:        s.r,
-		ReadTimeout:    s.opts.ReadTimeout,
-		WriteTimeout:   s.opts.WriteTimeout,
-		MaxHeaderBytes: s.opts.MaxHeaderBytes,
-		ErrorLog:       s.opts.Logger,
+		ReadTimeout:    opts.ReadTimeout,
+		WriteTimeout:   opts.WriteTimeout,
+		MaxHeaderBytes: opts.MaxHeaderBytes,
+		ErrorLog:       opts.Logger,
 	}
 }
 
@@ -168,17 +170,24 @@ func (s *Server) Logf(f string, args ...interface{}) {
 }
 
 func (s *Server) logfStack(n int, f string, args ...interface{}) {
-	if s.opts.Logger != nil {
-		_, file, line, ok := runtime.Caller(n - 1)
-		if !ok {
-			file = "???"
-			line = 0
-		}
-		if idx := strings.LastIndex(file, "/"); idx != -1 {
-			file = file[idx+1:]
-		}
-		s.opts.Logger.Printf(file+":"+strconv.Itoa(line)+": "+f, args...)
+	lg := s.opts.Logger
+	if lg == nil {
+		return
 	}
+
+	_, file, line, ok := runtime.Caller(n - 1)
+	if !ok {
+		file = "???"
+		line = 0
+	}
+
+	// make it output the package owning the file
+	parts := strings.Split(file, "/")
+	if len(parts) > 2 {
+		parts = parts[len(parts)-2:]
+	}
+
+	lg.Printf(strings.Join(parts, "/")+":"+strconv.Itoa(line)+": "+f, args...)
 }
 
 // AllowCORS is an alias for s.AddRoute("OPTIONS", path, AllowCORS(allowedMethods...))
