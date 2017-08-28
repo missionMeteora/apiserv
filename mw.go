@@ -12,6 +12,8 @@ import (
 	"github.com/gorilla/securecookie"
 )
 
+// LogRequests is a request logger middleware.
+// If logJSONRequests is true, it'll attempt to parse the incoming request's body and output it to the log.
 func LogRequests(logJSONRequests bool) Handler {
 	var reqID uint64
 	return func(ctx *Context) Response {
@@ -49,17 +51,20 @@ func LogRequests(logJSONRequests bool) Handler {
 	}
 }
 
-const SecureCookieKey = ":SC:"
+const secureCookieKey = ":SC:"
 
+// SecureCookie is a middleware to enable SecureCookies.
+// For more details check `go doc securecookie.New`
 func SecureCookie(hashKey, blockKey []byte) Handler {
 	return func(ctx *Context) Response {
-		ctx.Set(SecureCookieKey, securecookie.New(hashKey, blockKey))
+		ctx.Set(secureCookieKey, securecookie.New(hashKey, blockKey))
 		return nil
 	}
 }
 
+// GetSecureCookie returns the *securecookie.SecureCookie associated with the Context, or nil.
 func GetSecureCookie(ctx *Context) *securecookie.SecureCookie {
-	sc, ok := ctx.Get(SecureCookieKey).(*securecookie.SecureCookie)
+	sc, ok := ctx.Get(secureCookieKey).(*securecookie.SecureCookie)
 	if ok {
 		return sc
 	}

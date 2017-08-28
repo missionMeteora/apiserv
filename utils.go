@@ -1,7 +1,6 @@
 package apiserv
 
 import (
-	"encoding/gob"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -9,10 +8,6 @@ import (
 	"strings"
 	"time"
 )
-
-func init() {
-	gob.Register(M{})
-}
 
 var (
 	nukeCookieDate = time.Date(1991, time.August, 6, 0, 0, 0, 0, time.UTC)
@@ -133,7 +128,8 @@ func (vs ctxValues) get(key string) *ctxValue {
 	return nil
 }
 
-func stringMarshal(v interface{}) (string, error) {
+// jsonMarshal is a json.Marshal wrapper to return a string instead of a []byte
+func jsonMarshal(v interface{}) (string, error) {
 	j, err := json.Marshal(v)
 	if err != nil {
 		return "", err

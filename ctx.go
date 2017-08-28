@@ -213,7 +213,7 @@ func (ctx *Context) ClientIP() string {
 	return ""
 }
 
-// NextMiddleware() is a middleware-only func to execute all the other middlewares in the group and return before the handlers.
+// NextMiddleware is a middleware-only func to execute all the other middlewares in the group and return before the handlers.
 // will panic if called from a handler.
 func (ctx *Context) NextMiddleware() Response {
 	if ctx.nextMW != nil {
@@ -222,7 +222,7 @@ func (ctx *Context) NextMiddleware() Response {
 	return nil
 }
 
-// NextHandler() is a func to execute all the handlers in the group up until one returns a Response.
+// NextHandler is a func to execute all the handlers in the group up until one returns a Response.
 func (ctx *Context) NextHandler() Response {
 	if ctx.next != nil {
 		return ctx.next()
@@ -285,7 +285,7 @@ func (ctx *Context) SetCookie(name string, value interface{}, domain string, for
 		}
 	} else if s, ok := value.(string); ok {
 		encValue = s
-	} else if encValue, err = stringMarshal(value); err != nil {
+	} else if encValue, err = jsonMarshal(value); err != nil {
 		return
 	}
 
