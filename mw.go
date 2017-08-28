@@ -8,6 +8,8 @@ import (
 	"io/ioutil"
 	"sync/atomic"
 	"time"
+
+	"github.com/gorilla/securecookie"
 )
 
 func LogRequests(logJSONRequests bool) Handler {
@@ -42,7 +44,24 @@ func LogRequests(logJSONRequests bool) Handler {
 
 		ctx.Next()
 
-		ctx.s.Logf("[reqID:%d] [%s] [%d] %s %s [%s]%s", id, ctx.ClientIP(), ctx.Status(), req.Method, url.Path, time.Since(start), extra)
+		ctx.s.Logf("[reqID:%05d] [%s] [%d] %s %s [%s]%s", id, ctx.ClientIP(), ctx.Status(), req.Method, url.Path, time.Since(start), extra)
 		return nil
 	}
+}
+
+const SecureCookieKey = ":SC:"
+
+func SecureCookie(hashKey, blockKey []byte) Handler {
+	return func(ctx *Context) Response {
+		ctx.Set(SecureCookieKey, securecookie.New(hashKey, blockKey))
+		return nil
+	}
+}
+
+func GetSecureCookie(ctx *Context) *securecookie.SecureCookie {
+	sc, ok := ctx.Get(SecureCookieKey).(*securecookie.SecureCookie)
+	if ok {
+		return sc
+	}
+	return nil
 }

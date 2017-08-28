@@ -1,10 +1,21 @@
 package apiserv
 
 import (
+	"encoding/gob"
+	"encoding/json"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
+)
+
+func init() {
+	gob.Register(M{})
+}
+
+var (
+	nukeCookieDate = time.Date(1991, time.August, 6, 0, 0, 0, 0, time.UTC)
 )
 
 // FromHTTPHandler returns a Handler from an http.Handler.
@@ -83,4 +94,49 @@ func AllowCORS(allowedMethods ...string) Handler {
 		wh.Set("Access-Control-Max-Age", "86400") // 24 hours
 		return RespOK
 	}
+}
+
+// M is a QoL shortcut for map[string]interface{}
+type M map[string]interface{}
+
+type ctxValue struct {
+	key   string
+	value interface{}
+}
+
+// this is a cheaper version than using a map and/or context.WithValue
+
+type ctxValues []*ctxValue
+
+func (vs ctxValues) Set(key string, value interface{}) ctxValues {
+	if v := vs.get(key); v != nil {
+		v.value = value
+		return vs
+	}
+
+	return append(vs, &ctxValue{key, value})
+}
+
+func (vs ctxValues) Get(key string) interface{} {
+	if v := vs.get(key); v != nil {
+		return v.value
+	}
+	return nil
+}
+
+func (vs ctxValues) get(key string) *ctxValue {
+	for _, v := range vs {
+		if v.key == key {
+			return v
+		}
+	}
+	return nil
+}
+
+func stringMarshal(v interface{}) (string, error) {
+	j, err := json.Marshal(v)
+	if err != nil {
+		return "", err
+	}
+	return string(j), err
 }

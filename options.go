@@ -4,8 +4,6 @@ import (
 	"log"
 	"time"
 
-	"github.com/gorilla/securecookie"
-
 	"github.com/missionMeteora/apiserv/router"
 )
 
@@ -18,8 +16,6 @@ type options struct {
 	Logger          *log.Logger
 
 	RouterOptions *router.Options // Additional options passed to the internal router.Router instance
-
-	SecureCookie *securecookie.SecureCookie
 }
 
 // Option is a func to set internal server options.
@@ -87,13 +83,5 @@ func SetNoCatchPanics(enable bool) Option {
 			opt.RouterOptions = &router.Options{}
 		}
 		opt.RouterOptions.NoCatchPanics = enable
-	})
-}
-
-// SetSecureCookie enables secure cookies for the server.
-// Check `go doc securecookie.New` for the actual implementation information.
-func SetSecureCookie(hashKey, blockKey []byte) Option {
-	return optionSetter(func(opt *options) {
-		opt.SecureCookie = securecookie.New(hashKey, blockKey)
 	})
 }
