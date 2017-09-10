@@ -2,7 +2,6 @@ package apiserv
 
 import (
 	"fmt"
-	"net"
 	"os"
 
 	"golang.org/x/crypto/acme/autocert"
@@ -42,5 +41,5 @@ func (s *Server) RunAutoCert(certCacheDir string, domains ...string) error {
 		return srv.Serve(ln)
 	}
 
-	return srv.Serve(&tcpKeepAliveListener{ln.(*net.TCPListener), s.opts.KeepAlivePeriod})
+	return srv.Serve(ln)
 }
