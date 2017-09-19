@@ -6,6 +6,9 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"runtime"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -22,24 +25,25 @@ var DefaultOpts = options{
 
 	KeepAlivePeriod: 3 * time.Minute, // default value in net/http
 
-	Logger: log.New(os.Stderr, "apiserv: ", log.Lshortfile),
+	Logger: log.New(os.Stderr, "apiserv: ", 0),
 }
 
 // New returns a new server with the specified options.
-func New(opts ...OptionCallback) *Server {
+func New(opts ...Option) *Server {
 	srv := &Server{
 		opts: DefaultOpts,
 	}
 
-	for _, fn := range opts {
-		fn(&srv.opts)
+	for _, opt := range opts {
+		opt.apply(&srv.opts)
 	}
+
 	ro := srv.opts.RouterOptions
 	srv.r = router.New(ro)
 
 	srv.r.PanicHandler = func(w http.ResponseWriter, req *http.Request, v interface{}) {
 		srv.Logf("PANIC (%T): %v", v, v)
-		ctx := getCtx(w, req, nil)
+		ctx := getCtx(w, req, nil, srv)
 		defer putCtx(ctx)
 
 		if srv.PanicHandler != nil {
@@ -52,7 +56,7 @@ func New(opts ...OptionCallback) *Server {
 	}
 
 	srv.r.NotFoundHandler = func(w http.ResponseWriter, req *http.Request, p router.Params) {
-		ctx := getCtx(w, req, p)
+		ctx := getCtx(w, req, p, srv)
 		defer putCtx(ctx)
 
 		if srv.NotFoundHandler != nil {
@@ -93,13 +97,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func (s *Server) newHTTPServer(addr string) *http.Server {
+	opts := &s.opts
 	return &http.Server{
 		Addr:           addr,
 		Handler:        s.r,
-		ReadTimeout:    s.opts.ReadTimeout,
-		WriteTimeout:   s.opts.WriteTimeout,
-		MaxHeaderBytes: s.opts.MaxHeaderBytes,
-		ErrorLog:       s.opts.Logger,
+		ReadTimeout:    opts.ReadTimeout,
+		WriteTimeout:   opts.WriteTimeout,
+		MaxHeaderBytes: opts.MaxHeaderBytes,
+		ErrorLog:       opts.Logger,
 	}
 }
 
@@ -161,9 +166,28 @@ func (s *Server) Closed() bool {
 
 // Logf logs to the default server logger if set
 func (s *Server) Logf(f string, args ...interface{}) {
-	if s.opts.Logger != nil {
-		s.opts.Logger.Printf(f, args...)
+	s.logfStack(3, f, args...)
+}
+
+func (s *Server) logfStack(n int, f string, args ...interface{}) {
+	lg := s.opts.Logger
+	if lg == nil {
+		return
 	}
+
+	_, file, line, ok := runtime.Caller(n - 1)
+	if !ok {
+		file = "???"
+		line = 0
+	}
+
+	// make it output the package owning the file
+	parts := strings.Split(file, "/")
+	if len(parts) > 2 {
+		parts = parts[len(parts)-2:]
+	}
+
+	lg.Printf(strings.Join(parts, "/")+":"+strconv.Itoa(line)+": "+f, args...)
 }
 
 // AllowCORS is an alias for s.AddRoute("OPTIONS", path, AllowCORS(allowedMethods...))

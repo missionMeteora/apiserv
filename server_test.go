@@ -22,11 +22,46 @@ var testData = []struct {
 	{"/mw/sub", NewJSONResponse("data:test")},
 }
 
-func TestServer(t *testing.T) {
+func newServerAndWait(t *testing.T, addr string) *Server {
 	var (
-		srv = New(SetErrLogger(nil)) // don't need the spam with panics for the /panic handler
-		ts  = httptest.NewServer(srv)
+		s     *Server
+		timer = time.After(time.Second)
 	)
+	if testing.Verbose() {
+		s = New()
+	} else {
+		s = New(SetErrLogger(nil)) // don't need the spam with panics for the /panic handler
+	}
+	if addr == "" {
+		addr = "127.0.0.1:0"
+	}
+	go s.Run(addr)
+	for {
+		select {
+		case <-timer:
+			t.Fatalf("still no address after 1 second")
+		default:
+		}
+		addrs := s.Addrs()
+		if len(addrs) == 0 {
+			time.Sleep(time.Millisecond)
+			continue
+		}
+		if strings.HasPrefix(addrs[0], ":0") {
+			t.Fatalf("unexpected addr: %v", addrs[0])
+		}
+		return s
+	}
+}
+
+func TestServer(t *testing.T) {
+	var srv *Server
+
+	if testing.Verbose() {
+		srv = New()
+	} else {
+		srv = New(SetErrLogger(nil)) // don't need the spam with panics for the /panic handler
+	}
 
 	srv.GET("/ping", func(ctx *Context) Response {
 		return NewJSONResponse("pong")
@@ -39,6 +74,16 @@ func TestServer(t *testing.T) {
 
 	srv.GET("/ping/:id", func(ctx *Context) Response {
 		return NewJSONResponse("pong:" + ctx.Params.Get("id"))
+	})
+
+	srv.POST("/ping/:id", func(ctx *Context) Response {
+		var req struct {
+			Ping string `json:"ping"`
+		}
+		if err := ctx.BindJSON(&req); err != nil {
+			return NewJSONErrorResponse(500, err)
+		}
+		return NewJSONResponse("pong:" + ctx.Params.Get("id") + ":" + req.Ping)
 	})
 
 	srv.Static("/s/", "./", false)
@@ -54,6 +99,9 @@ func TestServer(t *testing.T) {
 		return NewJSONResponse("data:" + v)
 	})
 
+	srv.Use(LogRequests(true))
+
+	ts := httptest.NewServer(srv)
 	defer ts.Close()
 
 	for _, td := range testData {
@@ -186,30 +234,25 @@ func TestServer(t *testing.T) {
 			t.Fatalf("unexpected headers: %+v", resp.Header)
 		}
 	})
+
+	t.Run("POST", func(t *testing.T) {
+		resp, err := http.Post(ts.URL+"/ping/hello", MimeJSON, strings.NewReader(`{"ping": "world"}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		var s string
+
+		if _, err = ReadJSONResponse(resp.Body, &s); err != nil {
+			t.Fatal(err)
+		}
+		if s != "pong:hello:world" {
+			t.Fatalf("expected pong:hello:world, got %#+v", s)
+		}
+	})
 }
 
 func TestListenZero(t *testing.T) {
-	var (
-		s     = New()
-		timer = time.After(time.Second)
-	)
+	s := newServerAndWait(t, "")
 	defer s.Shutdown(0)
-	go s.Run("127.0.0.1:0")
-	for {
-		select {
-		case <-timer:
-			t.Fatalf("still no address after 1 second")
-		default:
-		}
-		addrs := s.Addrs()
-		if len(addrs) == 0 {
-			time.Sleep(time.Millisecond)
-			continue
-		}
-		if strings.HasPrefix(addrs[0], ":0") {
-			t.Fatalf("unexpected addr: %v", addrs[0])
-		}
-		t.Logf("addrs: %s", addrs[0])
-		break
-	}
 }

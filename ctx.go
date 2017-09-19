@@ -1,12 +1,15 @@
 package apiserv
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -35,11 +38,15 @@ type Context struct {
 	Req    *http.Request
 	http.ResponseWriter
 
-	data map[string]interface{}
+	data ctxValues
 
 	status             int
 	hijackServeContent bool
 	done               bool
+
+	s      *Server
+	next   func() Response
+	nextMW func() Response
 }
 
 // Param is a shorthand for ctx.Params.Get(name).
@@ -54,16 +61,12 @@ func (ctx *Context) Query(key string) string {
 
 // Get returns a context value
 func (ctx *Context) Get(key string) interface{} {
-	return ctx.data[key]
+	return ctx.data.Get(key)
 }
 
 // Set sets a context value, useful in passing data to other handlers down the chain
 func (ctx *Context) Set(key string, val interface{}) {
-	if ctx.data == nil {
-		ctx.data = make(map[string]interface{})
-	}
-
-	ctx.data[key] = val
+	ctx.data = ctx.data.Set(key, val)
 }
 
 // WriteReader outputs the data from the passed reader with optional content-type.
@@ -225,6 +228,58 @@ func (ctx *Context) JSONP(code int, callbackKey string, v interface{}) (err erro
 	return
 }
 
+// ClientIP returns the current client ip, accounting for X-Real-Ip and X-forwarded-For headers as well.
+func (ctx *Context) ClientIP() string {
+	h := ctx.Req.Header
+
+	// handle proxies
+	if ip := h.Get("X-Real-Ip"); ip != "" {
+		return strings.TrimSpace(ip)
+	}
+
+	if ip := h.Get("X-Forwarded-For"); ip != "" {
+		if index := strings.IndexByte(ip, ','); index >= 0 {
+			if ip = strings.TrimSpace(ip[:index]); len(ip) > 0 {
+				return ip
+			}
+		}
+		if ip = strings.TrimSpace(ip); ip != "" {
+			return ip
+		}
+	}
+
+	if ip, _, err := net.SplitHostPort(strings.TrimSpace(ctx.Req.RemoteAddr)); err == nil {
+		return ip
+	}
+
+	return ""
+}
+
+// NextMiddleware is a middleware-only func to execute all the other middlewares in the group and return before the handlers.
+// will panic if called from a handler.
+func (ctx *Context) NextMiddleware() Response {
+	if ctx.nextMW != nil {
+		return ctx.nextMW()
+	}
+	return nil
+}
+
+// NextHandler is a func to execute all the handlers in the group up until one returns a Response.
+func (ctx *Context) NextHandler() Response {
+	if ctx.next != nil {
+		return ctx.next()
+	}
+	return nil
+}
+
+// Next is a QoL function that calls NextMiddleware() then NextHandler() if NextMiddleware() didn't return a response.
+func (ctx *Context) Next() Response {
+	if r := ctx.NextMiddleware(); r != nil {
+		return r
+	}
+	return ctx.NextHandler()
+}
+
 // WriteHeader and Write are to implement ResponseWriter and allows ghetto hijacking of http.ServeContent errors,
 // without them we'd end up with plain text errors, we wouldn't want that, would we?
 // WriteHeader implements http.ResponseWriter
@@ -249,6 +304,9 @@ func (ctx *Context) Write(p []byte) (int, error) {
 
 // Status returns last value written using WriteHeader.
 func (ctx *Context) Status() int {
+	if ctx.status == 0 {
+		return 200
+	}
 	return ctx.status
 }
 
@@ -256,67 +314,110 @@ func (ctx *Context) Status() int {
 func (ctx *Context) Done() bool { return ctx.done }
 
 // SetCookie sets an http-only cookie using the passed name, value and domain.
+// Returns an error if there was a problem encoding the value.
 // if forceSecure is true, it will set the Secure flag to true, otherwise it sets it based on the connection.
 // if duration == -1, it sets expires to 10 years in the past, if 0 it gets ignored (aka session-only cookie),
 // if duration > 0, the expiration date gets set to now() + duration.
 // Note that for more complex options, you can use http.SetCookie(ctx, &http.Cookie{...}).
-func (ctx *Context) SetCookie(name, value, domain string, forceSecure bool, duration time.Duration) {
+func (ctx *Context) SetCookie(name string, value interface{}, domain string, forceHTTPS bool, duration time.Duration) (err error) {
+	var encValue string
+	if sc := GetSecureCookie(ctx); sc != nil {
+		if encValue, err = sc.Encode(name, value); err != nil {
+			return
+		}
+	} else if s, ok := value.(string); ok {
+		encValue = s
+	} else if encValue, err = jsonMarshal(value); err != nil {
+		return
+	}
+
 	cookie := &http.Cookie{
 		Path:     "/",
 		Name:     name,
-		Value:    value,
+		Value:    encValue,
 		Domain:   domain,
 		HttpOnly: true,
-		Secure:   forceSecure || ctx.Req.TLS != nil,
+		Secure:   forceHTTPS || ctx.Req.TLS != nil,
 	}
 
 	switch duration {
 	case 0: // session only
 	case -1:
-		cookie.Expires = time.Now().UTC().AddDate(-10, 0, 0)
+		cookie.Expires = nukeCookieDate
 	default:
 		cookie.Expires = time.Now().UTC().Add(duration)
 
 	}
 
 	http.SetCookie(ctx, cookie)
+	return
 }
 
-// RemoveCookie is an alias to ctx.SetCookie(name, "", domain, forceSecure, -1).
-func (ctx *Context) RemoveCookie(name, domain string, forceSecure bool) {
-	ctx.SetCookie(name, "", domain, forceSecure, -1)
+// RemoveCookie deletes the given cookie and sets its expires date in the past.
+func (ctx *Context) RemoveCookie(name string) {
+	http.SetCookie(ctx, &http.Cookie{
+		Path:     "/",
+		Name:     name,
+		Value:    "::deleted::",
+		HttpOnly: true,
+		Expires:  nukeCookieDate,
+	})
 }
 
 // GetCookie returns the given cookie's value.
-func (ctx *Context) GetCookie(name string) (string, bool) {
+func (ctx *Context) GetCookie(name string) (out string, ok bool) {
 	c, err := ctx.Req.Cookie(name)
 	if err != nil {
-		return "", false
+		return
+	}
+	if sc := GetSecureCookie(ctx); sc != nil {
+		ok = sc.Decode(name, c.Value, &out) == nil
+		return
 	}
 	return c.Value, true
+}
+
+// GetCookieValue unmarshals a cookie, only needed if you stored an object for the cookie not a string.
+func (ctx *Context) GetCookieValue(name string, valDst interface{}) error {
+	c, err := ctx.Req.Cookie(name)
+	if err != nil {
+		return err
+	}
+
+	if sc := GetSecureCookie(ctx); sc != nil {
+		return sc.Decode(name, c.Value, valDst)
+	}
+
+	return json.Unmarshal([]byte(c.Value), valDst)
+}
+
+// StdContext returns the context.Context associated with this Context's Request.
+func (ctx *Context) StdContext() context.Context {
+	return ctx.Req.Context()
+}
+
+// SetStdContext sets the current Context Request's context.Context.
+func (ctx *Context) SetStdContext(c context.Context) {
+	ctx.Req = ctx.Req.WithContext(c)
 }
 
 var ctxPool = sync.Pool{
 	New: func() interface{} { return &Context{} },
 }
 
-func getCtx(rw http.ResponseWriter, req *http.Request, p router.Params) *Context {
+func getCtx(rw http.ResponseWriter, req *http.Request, p router.Params, s *Server) *Context {
 	ctx, ok := ctxPool.Get().(*Context)
 	if !ok {
 		ctx = &Context{}
 	}
-	ctx.ResponseWriter, ctx.Req, ctx.Params = rw, req, p
+
+	ctx.ResponseWriter, ctx.Req = rw, req
+	ctx.Params, ctx.s = p, s
+
 	return ctx
 }
 
 func putCtx(ctx *Context) {
-	// TODO(OneOfOne):
-	/// use *ctx = Context{} when https://github.com/golang/go/issues/19677 gets fixed or 1.9 comes out.
-	ctx.ResponseWriter, ctx.Req, ctx.Params, ctx.data = nil, nil, nil, nil
-	ctx.done, ctx.hijackServeContent, ctx.status = false, false, 0
+	*ctx = Context{}
 	ctxPool.Put(ctx)
 }
-
-// Handler is the default server Handler
-// In a handler chain, returning a non-nil breaks the chain.
-type Handler func(ctx *Context) Response
