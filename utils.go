@@ -70,8 +70,8 @@ func StaticDirWithLimit(dir, paramName string, limit int) Handler {
 	}
 }
 
-// BindResponse will bind a JSON http response from an apiserv endpoint
-func BindResponse(resp *http.Response, val interface{}) (err error) {
+// BindJSONP will bind a JSONP http response from an apiserv endpoint
+func BindJSONP(resp *http.Response, val interface{}) (err error) {
 	var r JSONResponse
 	r.Data = val
 	defer resp.Body.Close()
