@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -22,6 +23,12 @@ const (
 
 	// ErrInvalidURL gets returned on invalid redirect urls.
 	ErrInvalidURL = errors.Error("invalid redirect error")
+
+	// ErrEmptyCallback is returned when a callback is empty
+	ErrEmptyCallback = errors.Error("empty callback")
+
+	// ErrEmptyData is returned when the data payload is empty
+	ErrEmptyData = errors.Error("empty data")
 )
 
 // Context is the default context passed to handlers
@@ -128,6 +135,41 @@ func (ctx *Context) BindJSON(out interface{}) error {
 	err := json.NewDecoder(ctx).Decode(out)
 	ctx.CloseBody()
 	return err
+}
+
+// BindJSONP parses the request's callback and data search queries and closes the body
+func (ctx *Context) BindJSONP(val interface{}) (cb string, err error) {
+	// We do not need the request body, close immediately
+	if err = ctx.CloseBody(); err != nil {
+		return
+	}
+
+	if cb = ctx.Query("callback"); len(cb) == 0 {
+		err = ErrEmptyCallback
+		return
+	}
+
+	data := ctx.Query("data")
+	if len(data) == 0 {
+		if val != nil {
+			// Cannot parse an empty payload, return
+			err = ErrEmptyData
+		}
+
+		return
+	}
+
+	if data, err = url.QueryUnescape(data); err != nil {
+		// Payload is not able to be unescaped, return
+		return
+	}
+
+	if err = json.Unmarshal([]byte(data), val); err != nil {
+		// Error encountered while unmarshaling, return
+		return
+	}
+
+	return
 }
 
 // Printf is a QoL function to handle outputing plain strings with optional fmt.Printf-style formating.
