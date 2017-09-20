@@ -70,33 +70,6 @@ func StaticDirWithLimit(dir, paramName string, limit int) Handler {
 	}
 }
 
-// BindJSONP will bind a JSONP http response from an apiserv endpoint
-func BindJSONP(resp *http.Response, val interface{}) (err error) {
-	var r JSONResponse
-	r.Data = val
-	defer resp.Body.Close()
-
-	if err = json.NewDecoder(resp.Body).Decode(&r); err != nil {
-		return
-	}
-
-	if !r.Success {
-		var errl errors.ErrorList
-		for _, v := range r.Errors {
-			errl.Push(v)
-		}
-
-		if err = errl.Err(); err != nil {
-			return
-		}
-
-		// No error provided, utilize the response status for messaging
-		return errors.Error(resp.Status)
-	}
-
-	return
-}
-
 // AllowCORS allows CORS responses.
 // If allowedMethods is empty, it will respond with the requested method.
 func AllowCORS(allowedMethods ...string) Handler {

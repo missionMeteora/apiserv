@@ -58,6 +58,21 @@ func ReadJSONResponse(rc io.ReadCloser, dataValue interface{}) (*JSONResponse, e
 		return nil, err
 	}
 	rc.Close()
+
+	if !r.Success {
+		var errl errors.ErrorList
+		for _, v := range r.Errors {
+			errl.Push(v)
+		}
+
+		if err = errl.Err(); err != nil {
+			return
+		}
+
+		// No error provided, utilize the response status for messaging
+		return errors.Error(resp.Status)
+	}
+
 	return &r, nil
 }
 
