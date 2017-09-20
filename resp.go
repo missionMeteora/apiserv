@@ -50,14 +50,14 @@ func NewJSONResponse(data interface{}) *JSONResponse {
 // ReadJSONResponse reads a response from an io.ReadCloser and closes the body.
 // dataValue is the data type you're expecting, for example:
 //	r, err := ReadJSONResponse(res.Body, &map[string]*Stats{})
-func ReadJSONResponse(rc io.ReadCloser, dataValue interface{}) (*JSONResponse, error) {
+func ReadJSONResponse(rc io.ReadCloser, dataValue interface{}) (rp *JSONResponse, err error) {
 	var r JSONResponse
 	r.Data = dataValue
-	if err := json.NewDecoder(rc).Decode(&r); err != nil {
-		rc.Close()
-		return nil, err
-	}
+	err = json.NewDecoder(rc).Decode(&r)
 	rc.Close()
+	if err != nil {
+		return
+	}
 
 	if !r.Success {
 		var errl errors.ErrorList
@@ -70,10 +70,11 @@ func ReadJSONResponse(rc io.ReadCloser, dataValue interface{}) (*JSONResponse, e
 		}
 
 		// No error provided, utilize the response status for messaging
-		return errors.Error(resp.Status)
+		err = errors.Error(http.StatusText(r.Code))
 	}
 
-	return &r, nil
+	rp = &r
+	return
 }
 
 // JSONResponse is the default standard api response
