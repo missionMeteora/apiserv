@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
+	"mime/multipart"
 	"net"
 	"net/http"
 	"net/url"
@@ -308,6 +310,28 @@ func (ctx *Context) Status() int {
 		return 200
 	}
 	return ctx.status
+}
+
+// MultipartReader is like Request.MultipartReader but supports multipart/*, not just form-data
+func (ctx *Context) MultipartReader() (*multipart.Reader, error) {
+	req := ctx.Req
+
+	v := req.Header.Get("Content-Type")
+	if v == "" {
+		return nil, http.ErrNotMultipart
+	}
+
+	d, params, err := mime.ParseMediaType(v)
+	if err != nil || strings.HasPrefix(d, "multipart/") {
+		return nil, http.ErrNotMultipart
+	}
+
+	boundary, ok := params["boundary"]
+	if !ok {
+		return nil, http.ErrMissingBoundary
+	}
+
+	return multipart.NewReader(req.Body, boundary), nil
 }
 
 // Done returns wither the context is marked as done or not.
