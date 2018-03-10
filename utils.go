@@ -61,7 +61,7 @@ func StaticDirWithLimit(dir, paramName string, limit int) Handler {
 			if os.IsNotExist(err) {
 				return RespNotFound
 			}
-			return NewJSONErrorResponse(500, err)
+			return NewJSONErrorResponse(http.StatusInternalServerError, err)
 		}
 
 		return nil

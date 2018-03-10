@@ -192,5 +192,5 @@ func (s *Server) logfStack(n int, f string, args ...interface{}) {
 
 // AllowCORS is an alias for s.AddRoute("OPTIONS", path, AllowCORS(allowedMethods...))
 func (s *Server) AllowCORS(path string, allowedMethods ...string) error {
-	return s.AddRoute("OPTIONS", path, AllowCORS(allowedMethods...))
+	return s.AddRoute(http.MethodOptions, path, AllowCORS(allowedMethods...))
 }

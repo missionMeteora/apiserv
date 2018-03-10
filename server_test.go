@@ -81,7 +81,7 @@ func TestServer(t *testing.T) {
 			Ping string `json:"ping"`
 		}
 		if err := ctx.BindJSON(&req); err != nil {
-			return NewJSONErrorResponse(500, err)
+			return NewJSONErrorResponse(http.StatusInternalServerError, err)
 		}
 		return NewJSONResponse("pong:" + ctx.Params.Get("id") + ":" + req.Ping)
 	})
