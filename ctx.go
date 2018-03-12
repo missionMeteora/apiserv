@@ -322,7 +322,7 @@ func (ctx *Context) MultipartReader() (*multipart.Reader, error) {
 	}
 
 	d, params, err := mime.ParseMediaType(v)
-	if err != nil || strings.HasPrefix(d, "multipart/") {
+	if err != nil || !strings.HasPrefix(d, "multipart/") {
 		return nil, http.ErrNotMultipart
 	}
 
