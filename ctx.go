@@ -286,7 +286,7 @@ func (ctx *Context) Next() Response {
 // without them we'd end up with plain text errors, we wouldn't want that, would we?
 // WriteHeader implements http.ResponseWriter
 func (ctx *Context) WriteHeader(s int) {
-	if ctx.status = s; ctx.hijackServeContent && ctx.status >= 300 {
+	if ctx.status = s; ctx.hijackServeContent && ctx.status >= http.StatusMultipleChoices {
 		return
 	}
 	ctx.ResponseWriter.WriteHeader(s)
@@ -295,7 +295,7 @@ func (ctx *Context) WriteHeader(s int) {
 
 // Write implements http.ResponseWriter
 func (ctx *Context) Write(p []byte) (int, error) {
-	if ctx.hijackServeContent && ctx.status >= 300 {
+	if ctx.hijackServeContent && ctx.status >= http.StatusMultipleChoices {
 		ctx.hijackServeContent = false
 		NewJSONErrorResponse(ctx.status, p).WriteToCtx(ctx)
 		return len(p), nil
@@ -307,7 +307,7 @@ func (ctx *Context) Write(p []byte) (int, error) {
 // Status returns last value written using WriteHeader.
 func (ctx *Context) Status() int {
 	if ctx.status == 0 {
-		return 200
+		return http.StatusOK
 	}
 	return ctx.status
 }

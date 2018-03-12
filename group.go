@@ -64,22 +64,22 @@ func (g *group) AddRoute(method, path string, handlers ...Handler) error {
 
 // GET is an alias for AddRoute("GET", path, handlers...).
 func (g *group) GET(path string, handlers ...Handler) error {
-	return g.AddRoute("GET", path, handlers...)
+	return g.AddRoute(http.MethodGet, path, handlers...)
 }
 
 // PUT is an alias for AddRoute("PUT", path, handlers...).
 func (g *group) PUT(path string, handlers ...Handler) error {
-	return g.AddRoute("PUT", path, handlers...)
+	return g.AddRoute(http.MethodPut, path, handlers...)
 }
 
 // POST is an alias for AddRoute("POST", path, handlers...).
 func (g *group) POST(path string, handlers ...Handler) error {
-	return g.AddRoute("POST", path, handlers...)
+	return g.AddRoute(http.MethodPost, path, handlers...)
 }
 
 // DELETE is an alias for AddRoute("DELETE", path, handlers...).
 func (g *group) DELETE(path string, handlers ...Handler) error {
-	return g.AddRoute("DELETE", path, handlers...)
+	return g.AddRoute(http.MethodDelete, path, handlers...)
 }
 
 func (g *group) staticStd(path, localPath string) error {
@@ -87,21 +87,21 @@ func (g *group) staticStd(path, localPath string) error {
 		path = strings.TrimSuffix(path, "/")
 	}
 	h := StaticDirStd(path, localPath)
-	if err := g.AddRoute("GET", joinPath(path, "*fp"), h); err != nil {
+	if err := g.AddRoute(http.MethodGet, joinPath(path, "*fp"), h); err != nil {
 		return err
 	}
-	return g.AddRoute("GET", path, h)
+	return g.AddRoute(http.MethodGet, path, h)
 }
 
 func (g *group) Static(path, localPath string, allowListing bool) error {
 	if allowListing {
 		return g.staticStd(path, localPath)
 	}
-	return g.AddRoute("GET", joinPath(path, "*fp"), StaticDir(localPath, "fp"))
+	return g.AddRoute(http.MethodGet, joinPath(path, "*fp"), StaticDir(localPath, "fp"))
 }
 
 func (g *group) StaticFile(path, localPath string) error {
-	return g.AddRoute("GET", path, func(ctx *Context) Response {
+	return g.AddRoute(http.MethodGet, path, func(ctx *Context) Response {
 		ctx.File(localPath)
 		return Break
 	})

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/http"
 	"sync/atomic"
 	"time"
 
@@ -27,7 +28,7 @@ func LogRequests(logJSONRequests bool) Handler {
 
 		if logJSONRequests {
 			switch m := req.Method; m {
-			case "POST", "PUT", "DELETE":
+			case http.MethodPost, http.MethodPut, http.MethodDelete:
 				var buf bytes.Buffer
 				io.Copy(&buf, req.Body)
 				req.Body.Close()

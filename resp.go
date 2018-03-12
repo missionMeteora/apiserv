@@ -110,7 +110,7 @@ func (r *JSONResponse) WriteToCtx(ctx *Context) error {
 		}
 
 	case http.StatusNoContent: // special case
-		ctx.WriteHeader(204)
+		ctx.WriteHeader(http.StatusNoContent)
 		return nil
 	}
 
@@ -235,7 +235,7 @@ func (f fileResp) WriteToCtx(ctx *Context) error {
 
 // PlainResponse returns SimpleResponse(200, contentType, val).
 func PlainResponse(contentType string, val interface{}) Response {
-	return SimpleResponse(200, contentType, val)
+	return SimpleResponse(http.StatusOK, contentType, val)
 }
 
 // SimpleResponse is a QoL wrapper to return a response with the specified code and content-type.
@@ -335,7 +335,7 @@ func (r *JSONPResponse) WriteToCtx(ctx *Context) error {
 		r.Code = http.StatusOK
 
 	case http.StatusNoContent: // special case
-		ctx.WriteHeader(204)
+		ctx.WriteHeader(http.StatusNoContent)
 		return nil
 	}
 
