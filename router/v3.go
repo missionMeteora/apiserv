@@ -2,6 +2,7 @@ package router
 
 import (
 	"errors"
+	"regexp"
 	"sync"
 )
 
@@ -19,6 +20,8 @@ var (
 	ErrTooManyStars = errors.New("too many stars")
 	// ErrStarNotLast is returned if *param is not the last part of the path.
 	ErrStarNotLast = errors.New("star param must be the last part of the path")
+
+	re = regexp.MustCompile(`([^/])+`)
 )
 
 type node struct {
@@ -55,7 +58,7 @@ func New(opts *Options) *Router {
 	}
 
 	r.paramsPool.New = func() interface{} {
-		return make(Params, 0, r.maxParams)
+		return &paramsWrapper{make(Params, 0, r.maxParams)}
 	}
 
 	if !r.opts.NoDefaultNotHandler {
@@ -117,6 +120,11 @@ func (r *Router) DELETE(path string, h Handler) error {
 // TODO(OneOfOne): optimize and maybe use []byte for Params.
 // TODO(OneOfOne): simplify and comment more, I honestly don't remember how it works.
 func (r *Router) Match(method, path string) (handler Handler, params Params) {
+	h, p := r.match(method, path)
+	return h, p.Params()
+}
+
+func (r *Router) match(method, path string) (handler Handler, params *paramsWrapper) {
 	m := r.getMap(method, false)
 	if m == nil {
 		return
@@ -164,9 +172,9 @@ func (r *Router) Match(method, path string) (handler Handler, params Params) {
 					}
 					np := &n.parts[y]
 					if np.Type == ':' {
-						params = append(params, Param{np.Name, p[last:x]})
+						params.p = append(params.p, Param{np.Name, p[last:x]})
 					} else if np.Type == '*' {
-						params = append(params, Param{np.Name, p[last:]})
+						params.p = append(params.p, Param{np.Name, p[last:]})
 						break
 					}
 					y++
@@ -215,14 +223,15 @@ func (r *Router) getMap(method string, create bool) routeMap {
 	}
 }
 
-func (r *Router) getParams() Params {
+func (r *Router) getParams() *paramsWrapper {
 	// this should never ever panic, if it does then there's something extremely wrong and *it should* panic
-	return r.paramsPool.Get().(Params)
+	return r.paramsPool.Get().(*paramsWrapper)
 }
 
-func (r *Router) putParams(p Params) {
-	if cap(p) != r.maxParams {
+func (r *Router) putParams(p *paramsWrapper) {
+	if p == nil || cap(p.p) != r.maxParams {
 		return
 	}
-	r.paramsPool.Put(p[:0])
+	p.p = p.p[:0]
+	r.paramsPool.Put(p)
 }

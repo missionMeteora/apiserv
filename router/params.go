@@ -37,3 +37,15 @@ func (p Params) Copy() Params {
 	copy(op, p)
 	return op
 }
+
+// this wraps the slice to avoid an extra allocation using the pool
+type paramsWrapper struct {
+	p Params
+}
+
+func (pw *paramsWrapper) Params() (p Params) {
+	if pw != nil {
+		p = pw.p
+	}
+	return
+}

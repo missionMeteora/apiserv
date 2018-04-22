@@ -27,13 +27,13 @@ func DefaultNotFoundHandler(w http.ResponseWriter, req *http.Request, _ Params) 
 
 // ServerHTTP implements http.Handler
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	if !r.opts.NoCatchPanics {
-		defer func() {
-			if v := recover(); v != nil && r.PanicHandler != nil {
-				r.PanicHandler(w, req, v)
-			}
-		}()
-	}
+	// if !r.opts.NoCatchPanics {
+	// 	defer func() {
+	// 		if v := recover(); v != nil && r.PanicHandler != nil {
+	// 			r.PanicHandler(w, req, v)
+	// 		}
+	// 	}()
+	// }
 
 	u := req.URL.EscapedPath()
 
@@ -41,8 +41,8 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		u = path.Clean(u)
 	}
 
-	if h, p := r.Match(req.Method, u); h != nil {
-		h(w, req, p)
+	if h, p := r.match(req.Method, u); h != nil {
+		h(w, req, p.Params())
 		r.putParams(p)
 	} else if r.NotFoundHandler != nil {
 		r.NotFoundHandler(w, req, nil)
