@@ -6,18 +6,20 @@ import (
 	"testing"
 )
 
-func TestJumpRouter(t *testing.T) {
-	r := buildMeteoraAPIRouter(t, true)
+func TestRouter(t *testing.T) {
+	r := buildMeteoraAPIRouter(t, false)
 	for _, m := range meteoraAPI {
 		ep := m.url
 		req, _ := http.NewRequest("GET", ep, nil)
 		r.ServeHTTP(nil, req)
 		req, _ = http.NewRequest("OTHER", ep, nil)
 		r.ServeHTTP(nil, req)
+		req, _ = http.NewRequest("OTHER", "../"+ep, nil)
+		r.ServeHTTP(nil, req)
 	}
 }
 
-func TestJumpRouterStar(t *testing.T) {
+func TestRouterStar(t *testing.T) {
 	r := New(nil)
 	fn := func(_ http.ResponseWriter, req *http.Request, p Params) {}
 	r.GET("/home", nil)
@@ -31,13 +33,13 @@ func TestJumpRouterStar(t *testing.T) {
 	if h, p := r.Match("GET", "/home/file/file2/report.json"); h == nil || len(p) != 1 || p.Get("path") != "file/file2/report.json" {
 		t.Fatalf("expected a 1 match, got %v %v", h, p)
 	}
+
 }
 
-func BenchmarkJumpRouter5Params(b *testing.B) {
+func BenchmarkRouter5Params(b *testing.B) {
 	req, _ := http.NewRequest("GET", "/campaignReport/:id/:cid/:start-date/:end-date/:filename", nil)
 	r := buildMeteoraAPIRouter(b, false)
 	b.ResetTimer()
-	b.ReportAllocs()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			r.ServeHTTP(nil, req)
@@ -45,11 +47,10 @@ func BenchmarkJumpRouter5Params(b *testing.B) {
 	})
 }
 
-func BenchmarkJumpRouterStatic(b *testing.B) {
+func BenchmarkRouterStatic(b *testing.B) {
 	req, _ := http.NewRequest("GET", "/dashboard", nil)
 	r := buildMeteoraAPIRouter(b, false)
 	b.ResetTimer()
-	b.ReportAllocs()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			r.ServeHTTP(nil, req)
@@ -57,13 +58,9 @@ func BenchmarkJumpRouterStatic(b *testing.B) {
 	})
 }
 
-type errorer interface {
-	Fatalf(fmt string, args ...interface{})
-	Logf(fmt string, args ...interface{})
-}
-
-func buildMeteoraAPIRouter(l errorer, print bool) (r *Router) {
+func buildMeteoraAPIRouter(l testing.TB, print bool) (r *Router) {
 	r = New(nil)
+	r.PanicHandler = nil
 	for _, m := range meteoraAPI {
 		ep := m.url
 		cnt := strings.Count(ep, ":")

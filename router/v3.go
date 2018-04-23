@@ -2,7 +2,6 @@ package router
 
 import (
 	"errors"
-	"regexp"
 	"sync"
 )
 
@@ -20,21 +19,30 @@ var (
 	ErrTooManyStars = errors.New("too many stars")
 	// ErrStarNotLast is returned if *param is not the last part of the path.
 	ErrStarNotLast = errors.New("star param must be the last part of the path")
-
-	re = regexp.MustCompile(`([^/])+`)
 )
 
 type node struct {
-	h         Handler
-	parts     []nodePart
-	numParams int
-	hasStar   bool
+	h     Handler
+	parts []nodePart
+}
+
+func (n node) hasStar() bool {
+	return len(n.parts) > 0 && n.parts[len(n.parts)-1].Type() == '*'
 }
 
 type routeMap map[string][]node
 
+func (rm routeMap) get(path string) []node {
+	return rm[path]
+}
+
+func (rm routeMap) append(path string, n node) {
+	rm[path] = append(rm[path], n)
+}
+
 // Router is an efficient routing library
 type Router struct {
+	head   routeMap
 	get    routeMap
 	post   routeMap
 	put    routeMap
@@ -82,18 +90,31 @@ func (r *Router) AddRoute(method, route string, h Handler) error {
 		}
 		panic(ErrTooManyStars)
 	}
-	if stars == 1 && rest[len(rest)-1].Type != '*' {
+
+	if stars == 1 && rest[len(rest)-1].Type() != '*' {
 		if r.opts.NoPanicOnInvalidAddRoute {
 			return ErrStarNotLast
 		}
 		panic(ErrStarNotLast)
 	}
+
+	if n := len(p) - 1; len(p) > 1 && p[n] == '/' {
+		p = p[:n]
+	}
+
 	m := r.getMap(method, true)
-	m[p] = append(m[p], node{h: h, parts: rest, numParams: num, hasStar: stars == 1})
+	m.append(p, node{h: h, parts: rest})
+
 	if num > r.maxParams {
 		r.maxParams = num
 	}
+
 	return nil
+}
+
+// HEAD is an alias for AddRoute("HEAD", path, h)
+func (r *Router) HEAD(path string, h Handler) error {
+	return r.AddRoute("HEAD", path, h)
 }
 
 // GET is an alias for AddRoute("GET", path, h)
@@ -117,79 +138,68 @@ func (r *Router) DELETE(path string, h Handler) error {
 }
 
 // Match matches a method and path to a handler.
-// TODO(OneOfOne): optimize and maybe use []byte for Params.
-// TODO(OneOfOne): simplify and comment more, I honestly don't remember how it works.
+// if METHOD == HEAD and there isn't a specific handler for it, it returns the GET handler for the path.
 func (r *Router) Match(method, path string) (handler Handler, params Params) {
 	h, p := r.match(method, path)
+	if h == nil && method == "HEAD" {
+		h, p = r.match("GET", path)
+	}
 	return h, p.Params()
 }
 
 func (r *Router) match(method, path string) (handler Handler, params *paramsWrapper) {
 	m := r.getMap(method, false)
-	if m == nil {
+
+	var (
+		nn   []node
+		rn   node
+		nsep int
+	)
+
+	revSplitPathFn(path, '/', func(p string, pidx, idx int) bool {
+		if nn = m.get(path[:idx]); nn != nil {
+			path, nsep = path[idx:], pidx
+			return true
+		}
+		return false
+	})
+
+	for i := range nn {
+		n := nn[i]
+		if len(n.parts) == nsep || n.hasStar() {
+			rn = n
+			handler = n.h
+			break
+		}
+	}
+
+	if len(rn.parts) == 0 {
 		return
 	}
-	ln := len(path) - 1
-	for i, slashes := ln, 0; i > -1; i-- {
-		if path[i] != '/' && i < ln {
-			continue
+
+	params = r.getParams()
+	splitPathFn(path, '/', func(p string, pidx, idx int) bool {
+		np := rn.parts[pidx]
+		switch np.Type() {
+		case ':':
+			params.p = append(params.p, Param{np.Name(), p[1:]})
+		case '*':
+			params.p = append(params.p, Param{np.Name(), path[1:]})
+			return true
 		}
-		p := path[:i+1]
-	O:
-		for rm, mi := m[p], 0; mi < len(rm); mi++ {
-			n := &rm[mi]
-			if len(n.parts) != slashes && !n.hasStar {
-				continue
-			}
-			p := path[i+1:]
-			for ln, x, y, last := len(p)-1, 0, 0, 0; x <= ln; x++ {
-				c, isEnd := p[x], x == ln
-				if c != '/' && !isEnd {
-					continue
-				}
-				if isEnd {
-					x++
-				}
-				np, v := &n.parts[y], p[last+1:x]
-				if np.Type == 0 && np.Name != v {
-					continue O
-				}
-				if np.Type == '*' {
-					break
-				}
-				y++
-				last = x
-			}
-			if n.numParams > 0 {
-				params = r.getParams()
-				for ln, x, y, last := len(p)-1, 0, 0, 0; x <= ln; x++ {
-					c, isEnd := p[x], x == ln
-					if c != '/' && !isEnd {
-						continue
-					}
-					if isEnd {
-						x++
-					}
-					np := &n.parts[y]
-					if np.Type == ':' {
-						params.p = append(params.p, Param{np.Name, p[last:x]})
-					} else if np.Type == '*' {
-						params.p = append(params.p, Param{np.Name, p[last:]})
-						break
-					}
-					y++
-					last = x + 1
-				}
-			}
-			return n.h, params
-		}
-		slashes++
-	}
+		return false
+	})
+
 	return
 }
 
 func (r *Router) getMap(method string, create bool) routeMap {
 	switch method {
+	case "HEAD":
+		if create && r.head == nil {
+			r.head = routeMap{}
+		}
+		return r.head
 	case "GET":
 		if create && r.get == nil {
 			r.get = routeMap{}

@@ -27,3 +27,4 @@ _testmain.go
 cmd/api-router-gen
 *.bench
 *.txt
+*.pprof

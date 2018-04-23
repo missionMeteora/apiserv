@@ -5,7 +5,6 @@ package router
 import (
 	"fmt"
 	"net/http"
-	"path"
 )
 
 // Handler is what handler looks like, duh?
@@ -27,18 +26,22 @@ func DefaultNotFoundHandler(w http.ResponseWriter, req *http.Request, _ Params) 
 
 // ServerHTTP implements http.Handler
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	// if !r.opts.NoCatchPanics {
-	// 	defer func() {
-	// 		if v := recover(); v != nil && r.PanicHandler != nil {
-	// 			r.PanicHandler(w, req, v)
-	// 		}
-	// 	}()
-	// }
+	if !r.opts.NoCatchPanics && r.PanicHandler != nil {
+		defer func() {
+			if v := recover(); v != nil {
+				r.PanicHandler(w, req, v)
+			}
+		}()
+	}
 
-	u := req.URL.EscapedPath()
+	u := req.URL.Path
+	// log.Printf("%q %q %q", u, req.URL.Path, req.URL.RawPath)
 
 	if !r.opts.NoAutoCleanURL {
-		u = path.Clean(u)
+		var ok bool
+		if u, ok = cleanPath(u); ok {
+			req.URL.Path = u
+		}
 	}
 
 	if h, p := r.match(req.Method, u); h != nil {
@@ -46,5 +49,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		r.putParams(p)
 	} else if r.NotFoundHandler != nil {
 		r.NotFoundHandler(w, req, nil)
+	} else {
+		w.WriteHeader(http.StatusNotFound)
 	}
 }

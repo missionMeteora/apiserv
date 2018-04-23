@@ -1,5 +1,11 @@
 package router
 
+import "log"
+
+func init() {
+	log.SetFlags(log.Lshortfile)
+}
+
 var meteoraAPI = [...]struct{ url string }{
 	// conflicts
 	{
@@ -441,5 +447,8 @@ var meteoraAPI = [...]struct{ url string }{
 	},
 	{
 		"/campaignDraftForecast/:id",
+	},
+	{
+		"/",
 	},
 }
