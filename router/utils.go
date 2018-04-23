@@ -2,17 +2,10 @@ package router
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"regexp"
 )
-
-func redirectByMethod(w http.ResponseWriter, req *http.Request, url string) {
-	if req.Method == "GET" {
-		http.Redirect(w, req, url, http.StatusMovedPermanently)
-	} else {
-		http.Redirect(w, req, url, http.StatusTemporaryRedirect)
-	}
-}
 
 type nodePart string
 
@@ -95,6 +88,13 @@ func revSplitPathFn(s string, sep uint8, fn func(p string, pidx, idx int) bool) 
 
 	return false
 }
+
+type headRW struct {
+	http.ResponseWriter
+	d io.Writer
+}
+
+func (w *headRW) Write(p []byte) (int, error) { return w.d.Write(p) }
 
 // based on https://github.com/gin-gonic/gin/blob/a8fa424ae529397d4a0f2a1f9fda8031851a3269/path.go#L21
 // cleanPath is the URL version of path.Clean, it returns a canonical URL path

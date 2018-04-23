@@ -2,16 +2,17 @@ package router
 
 import (
 	"errors"
+	"net/http"
 	"sync"
 )
 
 // Options passed to the router
 type Options struct {
 	NoAutoCleanURL           bool // don't automatically clean URLs, not recommended
-	NoDefaultNotHandler      bool // don't use the default not found handler
 	NoDefaultPanicHandler    bool // don't use the default panic handler
 	NoPanicOnInvalidAddRoute bool // don't panic on invalid routes, return an error instead
-	NoCatchPanics            bool // don't catch panics, warning this can cause the whole app to crash rather than the handler
+	NoCatchPanics            bool // don't catch panics
+	NoAutoHeadToGet          bool // disable automatically handling HEAD requests
 }
 
 var (
@@ -22,8 +23,8 @@ var (
 )
 
 type node struct {
-	h     Handler
 	parts []nodePart
+	h     Handler
 }
 
 func (n node) hasStar() bool {
@@ -42,19 +43,16 @@ func (rm routeMap) append(path string, n node) {
 
 // Router is an efficient routing library
 type Router struct {
-	head   routeMap
-	get    routeMap
-	post   routeMap
-	put    routeMap
-	delete routeMap
-	other  map[string]routeMap
+	methods [10]routeMap
 
-	paramsPool sync.Pool
+	pp sync.Pool
 
-	opts            Options
-	NotFoundHandler Handler
-	PanicHandler    PanicHandler
-	maxParams       int
+	NotFoundHandler         Handler
+	MethodNotAllowedHandler Handler
+	PanicHandler            PanicHandler
+
+	maxParams int
+	opts      Options
 }
 
 // New returns a new Router
@@ -65,12 +63,8 @@ func New(opts *Options) *Router {
 		r.opts = *opts
 	}
 
-	r.paramsPool.New = func() interface{} {
+	r.pp.New = func() interface{} {
 		return &paramsWrapper{make(Params, 0, r.maxParams)}
-	}
-
-	if !r.opts.NoDefaultNotHandler {
-		r.NotFoundHandler = DefaultNotFoundHandler
 	}
 
 	if !r.opts.NoDefaultPanicHandler {
@@ -112,38 +106,35 @@ func (r *Router) AddRoute(method, route string, h Handler) error {
 	return nil
 }
 
-// HEAD is an alias for AddRoute("HEAD", path, h)
-func (r *Router) HEAD(path string, h Handler) error {
-	return r.AddRoute("HEAD", path, h)
-}
-
 // GET is an alias for AddRoute("GET", path, h)
 func (r *Router) GET(path string, h Handler) error {
-	return r.AddRoute("GET", path, h)
+	return r.AddRoute(http.MethodGet, path, h)
 }
 
 // POST is an alias for AddRoute("POST", path, h)
 func (r *Router) POST(path string, h Handler) error {
-	return r.AddRoute("POST", path, h)
+	return r.AddRoute(http.MethodPost, path, h)
 }
 
 // PUT is an alias for AddRoute("PUT", path, h)
 func (r *Router) PUT(path string, h Handler) error {
-	return r.AddRoute("PUT", path, h)
+	return r.AddRoute(http.MethodPut, path, h)
 }
 
 // DELETE is an alias for AddRoute("DELETE", path, h)
 func (r *Router) DELETE(path string, h Handler) error {
-	return r.AddRoute("DELETE", path, h)
+	return r.AddRoute(http.MethodDelete, path, h)
 }
 
 // Match matches a method and path to a handler.
 // if METHOD == HEAD and there isn't a specific handler for it, it returns the GET handler for the path.
 func (r *Router) Match(method, path string) (handler Handler, params Params) {
 	h, p := r.match(method, path)
-	if h == nil && method == "HEAD" {
-		h, p = r.match("GET", path)
+
+	if h == nil && method == http.MethodHead && !r.opts.NoAutoHeadToGet {
+		h, p = r.match(http.MethodGet, path)
 	}
+
 	return h, p.Params()
 }
 
@@ -156,17 +147,19 @@ func (r *Router) match(method, path string) (handler Handler, params *paramsWrap
 		nsep int
 	)
 
-	revSplitPathFn(path, '/', func(p string, pidx, idx int) bool {
+	if !revSplitPathFn(path, '/', func(p string, pidx, idx int) bool {
 		if nn = m.get(path[:idx]); nn != nil {
 			path, nsep = path[idx:], pidx
 			return true
 		}
+
 		return false
-	})
+	}) {
+		return
+	}
 
 	for i := range nn {
-		n := nn[i]
-		if len(n.parts) == nsep || n.hasStar() {
+		if n := nn[i]; len(n.parts) == nsep || n.hasStar() {
 			rn = n
 			handler = n.h
 			break
@@ -194,48 +187,39 @@ func (r *Router) match(method, path string) (handler Handler, params *paramsWrap
 }
 
 func (r *Router) getMap(method string, create bool) routeMap {
+	var rm *routeMap
 	switch method {
-	case "HEAD":
-		if create && r.head == nil {
-			r.head = routeMap{}
-		}
-		return r.head
-	case "GET":
-		if create && r.get == nil {
-			r.get = routeMap{}
-		}
-		return r.get
-	case "POST":
-		if create && r.post == nil {
-			r.post = routeMap{}
-		}
-		return r.post
-	case "PUT":
-		if create && r.put == nil {
-			r.put = routeMap{}
-		}
-		return r.put
-	case "DELETE":
-		if create && r.delete == nil {
-			r.delete = routeMap{}
-		}
-		return r.delete
+	case http.MethodGet:
+		rm = &r.methods[0]
+	case http.MethodHead:
+		rm = &r.methods[1]
+	case http.MethodPost:
+		rm = &r.methods[2]
+	case http.MethodPut:
+		rm = &r.methods[3]
+	case http.MethodPatch:
+		rm = &r.methods[4]
+	case http.MethodDelete:
+		rm = &r.methods[5]
+	case http.MethodConnect:
+		rm = &r.methods[6]
+	case http.MethodOptions:
+		rm = &r.methods[7]
+	case http.MethodTrace:
+		rm = &r.methods[8]
 	default:
-		m, ok := r.other[method]
-		if !ok && create {
-			m = routeMap{}
-			if r.other == nil {
-				r.other = map[string]routeMap{}
-			}
-			r.other[method] = m
-		}
-		return m
+		return nil
 	}
+	if create && *rm == nil {
+		*rm = routeMap{}
+	}
+
+	return *rm
 }
 
 func (r *Router) getParams() *paramsWrapper {
 	// this should never ever panic, if it does then there's something extremely wrong and *it should* panic
-	return r.paramsPool.Get().(*paramsWrapper)
+	return r.pp.Get().(*paramsWrapper)
 }
 
 func (r *Router) putParams(p *paramsWrapper) {
@@ -243,5 +227,5 @@ func (r *Router) putParams(p *paramsWrapper) {
 		return
 	}
 	p.p = p.p[:0]
-	r.paramsPool.Put(p)
+	r.pp.Put(p)
 }

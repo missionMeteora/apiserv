@@ -34,8 +34,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}()
 	}
 
-	u := req.URL.Path
-	// log.Printf("%q %q %q", u, req.URL.Path, req.URL.RawPath)
+	u, method := req.URL.Path, req.Method
 
 	if !r.opts.NoAutoCleanURL {
 		var ok bool
@@ -44,12 +43,26 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	if h, p := r.match(req.Method, u); h != nil {
+	if method == http.MethodHead && !r.opts.NoAutoHeadToGet {
+		w, method = &headRW{ResponseWriter: w}, http.MethodGet
+	}
+
+	if h, p := r.match(method, u); h != nil {
 		h(w, req, p.Params())
 		r.putParams(p)
-	} else if r.NotFoundHandler != nil {
-		r.NotFoundHandler(w, req, nil)
+		return
+	}
+	if method == http.MethodGet {
+		if r.NotFoundHandler != nil {
+			r.NotFoundHandler(w, req, nil)
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
 	} else {
-		w.WriteHeader(http.StatusNotFound)
+		if r.MethodNotAllowedHandler != nil {
+			r.MethodNotAllowedHandler(w, req, nil)
+		} else {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
 	}
 }
