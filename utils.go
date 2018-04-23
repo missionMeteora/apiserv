@@ -133,14 +133,17 @@ func jsonMarshal(v interface{}) (string, error) {
 	return string(j), err
 }
 
-// MultiError handles returning multiple errors or non
+// MultiError handles returning multiple errors.
 type MultiError []error
 
+// Push adds an error to the MultiError slice if err != nil.
 func (me *MultiError) Push(err error) {
 	if err != nil {
 		*me = append(*me, err)
 	}
 }
+
+// Err returns nil if me is empty.
 func (me MultiError) Err() error {
 	if len(me) == 0 {
 		return nil

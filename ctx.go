@@ -37,18 +37,16 @@ var (
 // it is not thread safe and should never be used outside the handler
 type Context struct {
 	Params router.Params
-	Req    *http.Request
+	data   ctxValues
 	http.ResponseWriter
-
-	data ctxValues
+	Req    *http.Request
+	s      *Server
+	next   func() Response
+	nextMW func() Response
 
 	status             int
 	hijackServeContent bool
 	done               bool
-
-	s      *Server
-	next   func() Response
-	nextMW func() Response
 }
 
 // Param is a shorthand for ctx.Params.Get(name).
@@ -76,6 +74,7 @@ func (ctx *Context) WriteReader(contentType string, r io.Reader) (int64, error) 
 	if contentType != "" {
 		ctx.SetContentType(contentType)
 	}
+
 	return io.Copy(ctx, r)
 }
 
@@ -95,8 +94,10 @@ func (ctx *Context) File(fp string) error {
 	if fi.IsDir() {
 		return ErrDir
 	}
+
 	ctx.hijackServeContent = true
 	http.ServeContent(ctx, ctx.Req, fp, fi.ModTime(), f)
+
 	return nil
 }
 
@@ -242,6 +243,7 @@ func (ctx *Context) ClientIP() string {
 				return ip
 			}
 		}
+
 		if ip = strings.TrimSpace(ip); ip != "" {
 			return ip
 		}
@@ -286,8 +288,8 @@ func (ctx *Context) WriteHeader(s int) {
 	if ctx.status = s; ctx.hijackServeContent && ctx.status >= http.StatusMultipleChoices {
 		return
 	}
-	ctx.ResponseWriter.WriteHeader(s)
 
+	ctx.ResponseWriter.WriteHeader(s)
 }
 
 // Write implements http.ResponseWriter
@@ -297,15 +299,18 @@ func (ctx *Context) Write(p []byte) (int, error) {
 		NewJSONErrorResponse(ctx.status, p).WriteToCtx(ctx)
 		return len(p), nil
 	}
+
 	ctx.done = true
+
 	return ctx.ResponseWriter.Write(p)
 }
 
 // Status returns last value written using WriteHeader.
 func (ctx *Context) Status() int {
 	if ctx.status == 0 {
-		return http.StatusOK
+		ctx.status = http.StatusOK
 	}
+
 	return ctx.status
 }
 
