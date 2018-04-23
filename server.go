@@ -25,7 +25,7 @@ var DefaultOpts = options{
 
 	KeepAlivePeriod: 3 * time.Minute, // default value in net/http
 
-	Logger: log.New(os.Stderr, "apiserv: ", 0),
+	Logger: log.New(os.Stderr, "apiserv: ", log.Lshortfile),
 }
 
 // New returns a new server with the specified options.
@@ -43,23 +43,25 @@ func New(opts ...Option) *Server {
 
 	srv.r.PanicHandler = func(w http.ResponseWriter, req *http.Request, v interface{}) {
 		srv.Logf("PANIC (%T): %v", v, v)
-		ctx := getCtx(w, req, nil, srv)
-		defer putCtx(ctx)
-
 		if srv.PanicHandler != nil {
+			ctx := getCtx(w, req, nil, srv)
+			defer putCtx(ctx)
+
 			srv.PanicHandler(ctx, v)
 			return
 		}
 
 		resp := NewJSONErrorResponse(http.StatusInternalServerError, fmt.Sprintf("PANIC (%T): %v", v, v))
-		resp.WriteToCtx(ctx)
+		resp.WriteToCtx(&Context{
+			Req:            req,
+			ResponseWriter: w,
+		})
 	}
 
 	srv.r.NotFoundHandler = func(w http.ResponseWriter, req *http.Request, p router.Params) {
-		ctx := getCtx(w, req, p, srv)
-		defer putCtx(ctx)
-
 		if srv.NotFoundHandler != nil {
+			ctx := getCtx(w, req, p, srv)
+			defer putCtx(ctx)
 			srv.NotFoundHandler(ctx)
 			return
 		}

@@ -2,22 +2,23 @@ package apiserv
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
-
-	"github.com/missionMeteora/toolkit/errors"
+	"strings"
 )
 
 // Common responses
 var (
-	RespNotFound   Response = NewJSONErrorResponse(http.StatusNotFound)
-	RespForbidden  Response = NewJSONErrorResponse(http.StatusForbidden)
-	RespBadRequest Response = NewJSONErrorResponse(http.StatusBadRequest)
-	RespEmpty      Response = &simpleResp{code: http.StatusNoContent}
-	RespOK         Response = &simpleResp{code: http.StatusOK}
-	RespRedirRoot           = Redirect("/", false)
+	RespMethodNotAllowed Response = NewJSONErrorResponse(http.StatusMethodNotAllowed)
+	RespNotFound         Response = NewJSONErrorResponse(http.StatusNotFound)
+	RespForbidden        Response = NewJSONErrorResponse(http.StatusForbidden)
+	RespBadRequest       Response = NewJSONErrorResponse(http.StatusBadRequest)
+	RespEmpty            Response = &simpleResp{code: http.StatusNoContent}
+	RespOK               Response = &simpleResp{code: http.StatusOK}
+	RespRedirectRoot     Response = Redirect("/", false)
 
 	// Break can be returned from a handler to break a handler chain.
 	// It doesn't write anything to the connection.
@@ -60,17 +61,19 @@ func ReadJSONResponse(rc io.ReadCloser, dataValue interface{}) (rp *JSONResponse
 	}
 
 	if !r.Success {
-		var errl errors.ErrorList
+		errs := make([]string, 0, len(r.Errors))
 		for _, v := range r.Errors {
-			errl.Push(v)
+			if v != nil {
+				errs = append(errs, v.Error())
+			}
 		}
 
-		if err = errl.Err(); err != nil {
-			return
+		if len(errs) > 0 {
+			return nil, errors.New(strings.Join(errs, "\n"))
 		}
 
 		// No error provided, utilize the response status for messaging
-		err = errors.Error(http.StatusText(r.Code))
+		err = errors.New(http.StatusText(r.Code))
 	}
 
 	rp = &r
@@ -85,18 +88,6 @@ type JSONResponse struct {
 
 	Success bool `json:"success"` // automatically set to true if r.Code >= 200 && r.Code < 300.
 	Indent  bool `json:"-"`       // if set to true, the json encoder will output indented json.
-}
-
-// ErrorList returns an errors.ErrorList of this response's errors or nil.
-func (r *JSONResponse) ErrorList() *errors.ErrorList {
-	if len(r.Errors) == 0 {
-		return nil
-	}
-	var el errors.ErrorList
-	for _, err := range r.Errors {
-		el.Push(err)
-	}
-	return &el
 }
 
 // WriteToCtx writes the response to a ResponseWriter
@@ -157,10 +148,6 @@ func (r *JSONResponse) appendErr(err interface{}) {
 		r.Errors = append(r.Errors, &Error{Message: string(v)})
 	case *JSONResponse:
 		r.Errors = append(r.Errors, v.Errors...)
-	case *errors.ErrorList:
-		v.ForEach(func(err error) {
-			r.appendErr(err)
-		})
 	case error:
 		r.Errors = append(r.Errors, &Error{Message: v.Error()})
 	default:

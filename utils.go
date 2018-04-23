@@ -128,11 +128,36 @@ func (vs ctxValues) get(key string) *ctxValue {
 	return nil
 }
 
-// jsonMarshal is a json.Marshal wrapper to return a string instead of a []byte
 func jsonMarshal(v interface{}) (string, error) {
 	j, err := json.Marshal(v)
-	if err != nil {
-		return "", err
-	}
 	return string(j), err
+}
+
+// MultiError handles returning multiple errors or non
+type MultiError []error
+
+func (me *MultiError) Push(err error) {
+	if err != nil {
+		*me = append(*me, err)
+	}
+}
+func (me MultiError) Err() error {
+	if len(me) == 0 {
+		return nil
+	}
+
+	if len(me) == 1 {
+		return me[0]
+	}
+
+	return me
+}
+
+func (me MultiError) Error() string {
+	errs := make([]string, 0, len(me))
+	for _, err := range me {
+		errs = append(errs, err.Error())
+	}
+
+	return "multiple errors returned:\n\t" + strings.Join(errs, "\n\t")
 }

@@ -3,13 +3,12 @@
 package apiserv
 
 import (
+	"errors"
 	"sync/atomic"
 	"time"
-
-	"github.com/missionMeteora/toolkit/errors"
 )
 
-const tooOld = errors.Error("go < 1.8 doesn't support exiting :(")
+const tooOld = errors.New("go < 1.8 doesn't support exiting :(")
 
 // Close immediately closes all the active underlying http servers and connections.
 func (s *Server) Close() error {

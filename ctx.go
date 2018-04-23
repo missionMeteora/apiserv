@@ -3,6 +3,7 @@ package apiserv
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -16,21 +17,20 @@ import (
 	"time"
 
 	"github.com/missionMeteora/apiserv/router"
-	"github.com/missionMeteora/toolkit/errors"
 )
 
-const (
+var (
 	// ErrDir is Returned from ctx.File when the path is a directory not a file.
-	ErrDir = errors.Error("file is a directory")
+	ErrDir = errors.New("file is a directory")
 
 	// ErrInvalidURL gets returned on invalid redirect urls.
-	ErrInvalidURL = errors.Error("invalid redirect error")
+	ErrInvalidURL = errors.New("invalid redirect error")
 
 	// ErrEmptyCallback is returned when a callback is empty
-	ErrEmptyCallback = errors.Error("empty callback")
+	ErrEmptyCallback = errors.New("empty callback")
 
 	// ErrEmptyData is returned when the data payload is empty
-	ErrEmptyData = errors.Error("empty data")
+	ErrEmptyData = errors.New("empty data")
 )
 
 // Context is the default context passed to handlers
@@ -154,7 +154,6 @@ func (ctx *Context) BindJSONP(val interface{}) (cb string, err error) {
 	data := ctx.Query("data")
 	if len(data) == 0 {
 		if val != nil {
-			// Cannot parse an empty payload, return
 			err = ErrEmptyData
 		}
 
@@ -162,12 +161,10 @@ func (ctx *Context) BindJSONP(val interface{}) (cb string, err error) {
 	}
 
 	if data, err = url.QueryUnescape(data); err != nil {
-		// Payload is not able to be unescaped, return
 		return
 	}
 
 	if err = json.Unmarshal([]byte(data), val); err != nil {
-		// Error encountered while unmarshaling, return
 		return
 	}
 
