@@ -7,32 +7,32 @@ import (
 	"github.com/missionMeteora/apiserv/router"
 )
 
-// Options are options used in creating the server
-type options struct {
+// Options allows finer control over the apiserv
+type Options struct {
 	ReadTimeout     time.Duration // see http.Server.ReadTimeout
 	WriteTimeout    time.Duration // see http.Server.WriteTimeout
 	KeepAlivePeriod time.Duration // sets the underlying socket's keepalive period, set to -1 to disable
 	MaxHeaderBytes  int           // see http.Server.MaxHeaderBytes
 	Logger          *log.Logger
 
-	RouterOptions *router.Options // Additional options passed to the internal router.Router instance
+	RouterOptions *router.Options // Additional Options passed to the internal router.Router instance
 }
 
-// Option is a func to set internal server options.
+// Option is a func to set internal server Options.
 type Option interface {
-	apply(opt *options)
+	apply(opt *Options)
 }
 
-type optionSetter func(opt *options)
+type optionSetter func(opt *Options)
 
-func (os optionSetter) apply(opt *options) {
+func (os optionSetter) apply(opt *Options) {
 	os(opt)
 }
 
 // ReadTimeout sets the read timeout on the server.
 // see http.Server.ReadTimeout
 func ReadTimeout(v time.Duration) Option {
-	return optionSetter(func(opt *options) {
+	return optionSetter(func(opt *Options) {
 		opt.ReadTimeout = v
 	})
 }
@@ -40,7 +40,7 @@ func ReadTimeout(v time.Duration) Option {
 // WriteTimeout sets the write timeout on the server.
 // see http.Server.WriteTimeout
 func WriteTimeout(v time.Duration) Option {
-	return optionSetter(func(opt *options) {
+	return optionSetter(func(opt *Options) {
 		opt.WriteTimeout = v
 	})
 }
@@ -48,22 +48,15 @@ func WriteTimeout(v time.Duration) Option {
 // MaxHeaderBytes sets the max size of headers on the server.
 // see http.Server.MaxHeaderBytes
 func MaxHeaderBytes(v int) Option {
-	return optionSetter(func(opt *options) {
+	return optionSetter(func(opt *Options) {
 		opt.MaxHeaderBytes = v
 	})
 }
 
 // SetErrLogger sets the error logger on the server.
 func SetErrLogger(v *log.Logger) Option {
-	return optionSetter(func(opt *options) {
+	return optionSetter(func(opt *Options) {
 		opt.Logger = v
-	})
-}
-
-// SetRouterOptions sets apiserv/router.Options on the server.
-func SetRouterOptions(v *router.Options) Option {
-	return optionSetter(func(opt *options) {
-		opt.RouterOptions = v
 	})
 }
 
@@ -71,14 +64,21 @@ func SetRouterOptions(v *router.Options) Option {
 // set to -1 to disable socket keepalive.
 // Not to be confused with http keep-alives which is controlled by apiserv.SetKeepAlivesEnabled.
 func SetKeepAlivePeriod(p time.Duration) Option {
-	return optionSetter(func(opt *options) {
+	return optionSetter(func(opt *Options) {
 		opt.KeepAlivePeriod = p
+	})
+}
+
+// SetRouterOptions sets apiserv/router.Options on the server.
+func SetRouterOptions(v *router.Options) Option {
+	return optionSetter(func(opt *Options) {
+		opt.RouterOptions = v
 	})
 }
 
 // SetNoCatchPanics toggles catching panics in handlers.
 func SetNoCatchPanics(enable bool) Option {
-	return optionSetter(func(opt *options) {
+	return optionSetter(func(opt *Options) {
 		if opt.RouterOptions == nil {
 			opt.RouterOptions = &router.Options{}
 		}

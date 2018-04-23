@@ -25,3 +25,6 @@ _testmain.go
 
 # until I get it working
 cmd/api-router-gen
+*.bench
+*.txt
+*.pprof

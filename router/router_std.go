@@ -5,7 +5,6 @@ package router
 import (
 	"fmt"
 	"net/http"
-	"path"
 )
 
 // Handler is what handler looks like, duh?
@@ -27,24 +26,43 @@ func DefaultNotFoundHandler(w http.ResponseWriter, req *http.Request, _ Params) 
 
 // ServerHTTP implements http.Handler
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	if !r.opts.NoCatchPanics {
+	if !r.opts.NoCatchPanics && r.PanicHandler != nil {
 		defer func() {
-			if v := recover(); v != nil && r.PanicHandler != nil {
+			if v := recover(); v != nil {
 				r.PanicHandler(w, req, v)
 			}
 		}()
 	}
 
-	u := req.URL.EscapedPath()
+	u, method := req.URL.Path, req.Method
 
 	if !r.opts.NoAutoCleanURL {
-		u = path.Clean(u)
+		var ok bool
+		if u, ok = cleanPath(u); ok {
+			req.URL.Path = u
+		}
 	}
 
-	if h, p := r.Match(req.Method, u); h != nil {
-		h(w, req, p)
+	if method == http.MethodHead && !r.opts.NoAutoHeadToGet {
+		w, method = &headRW{ResponseWriter: w}, http.MethodGet
+	}
+
+	if h, p := r.match(method, u); h != nil {
+		h(w, req, p.Params())
 		r.putParams(p)
-	} else if r.NotFoundHandler != nil {
-		r.NotFoundHandler(w, req, nil)
+		return
+	}
+	if method == http.MethodGet {
+		if r.NotFoundHandler != nil {
+			r.NotFoundHandler(w, req, nil)
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	} else {
+		if r.MethodNotAllowedHandler != nil {
+			r.MethodNotAllowedHandler(w, req, nil)
+		} else {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
 	}
 }

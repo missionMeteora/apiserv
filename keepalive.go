@@ -12,11 +12,17 @@ type tcpKeepAliveListener struct {
 }
 
 func (ln *tcpKeepAliveListener) Accept() (c net.Conn, err error) {
-	tc, err := ln.AcceptTCP()
-	if err != nil {
+	var tc *net.TCPConn
+
+	if tc, err = ln.AcceptTCP(); err != nil {
 		return
 	}
-	tc.SetKeepAlive(true)
-	tc.SetKeepAlivePeriod(ln.period)
+	if err = tc.SetKeepAlive(true); err != nil {
+		return
+	}
+	if err = tc.SetKeepAlivePeriod(ln.period); err != nil {
+		return
+	}
+
 	return tc, nil
 }

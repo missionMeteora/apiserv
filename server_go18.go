@@ -4,40 +4,39 @@ package apiserv
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 	"sync/atomic"
 	"time"
-
-	"github.com/missionMeteora/toolkit/errors"
 )
 
 // Close immediately closes all the active underlying http servers and connections.
 func (s *Server) Close() error {
-	if !atomic.CompareAndSwapInt32(&s.closed, 0, 1) {
-		return errors.ErrIsClosed
-	}
-
-	var el errors.ErrorList
-
+	var me MultiError
 	s.serversMux.Lock()
 	for _, srv := range s.servers {
 		srv.SetKeepAlivesEnabled(false)
-		el.Push(srv.Close())
+		if err := srv.Close(); err != nil {
+			err = fmt.Errorf("%s (%T): %s", srv.Addr, err, err)
+			me.Push(err)
+		}
 	}
+
 	s.servers = nil
 	s.serversMux.Unlock()
 
-	return el.Err()
+	return me.Err()
 }
 
 // Shutdown gracefully shutsdown all the underlying http servers.
 // You can optionally set a timeout.
 func (s *Server) Shutdown(timeout time.Duration) error {
 	if !atomic.CompareAndSwapInt32(&s.closed, 0, 1) {
-		return errors.ErrIsClosed
+		return http.ErrServerClosed
 	}
 
 	var (
-		el  errors.ErrorList
+		me  MultiError
 		ctx = context.Background()
 	)
 
@@ -50,10 +49,10 @@ func (s *Server) Shutdown(timeout time.Duration) error {
 	s.serversMux.Lock()
 	for _, srv := range s.servers {
 		srv.SetKeepAlivesEnabled(false)
-		el.Push(srv.Shutdown(ctx))
+		me.Push(srv.Shutdown(ctx))
 	}
 	s.servers = nil
 	s.serversMux.Unlock()
 
-	return el.Err()
+	return me.Err()
 }

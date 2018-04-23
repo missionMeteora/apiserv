@@ -94,45 +94,56 @@ func AllowCORS(allowedMethods ...string) Handler {
 // M is a QoL shortcut for map[string]interface{}
 type M map[string]interface{}
 
-type ctxValue struct {
-	key   string
-	value interface{}
-}
-
-// this is a cheaper version than using a map and/or context.WithValue
-
-type ctxValues []*ctxValue
-
-func (vs ctxValues) Set(key string, value interface{}) ctxValues {
-	if v := vs.get(key); v != nil {
-		v.value = value
-		return vs
+// ToJSON returns a string json representation of M, mostly for debugging.
+func (m M) ToJSON(indent bool) string {
+	if m == nil {
+		return "{}"
 	}
-
-	return append(vs, &ctxValue{key, value})
+	j, _ := jsonMarshal(indent, m)
+	return j
 }
 
-func (vs ctxValues) Get(key string) interface{} {
-	if v := vs.get(key); v != nil {
-		return v.value
-	}
-	return nil
-}
-
-func (vs ctxValues) get(key string) *ctxValue {
-	for _, v := range vs {
-		if v.key == key {
-			return v
-		}
-	}
-	return nil
-}
-
-// jsonMarshal is a json.Marshal wrapper to return a string instead of a []byte
-func jsonMarshal(v interface{}) (string, error) {
-	j, err := json.Marshal(v)
-	if err != nil {
-		return "", err
+func jsonMarshal(indent bool, v interface{}) (string, error) {
+	var (
+		j   []byte
+		err error
+	)
+	if indent {
+		j, err = json.MarshalIndent(v, "", "\t")
+	} else {
+		j, err = json.Marshal(v)
 	}
 	return string(j), err
+}
+
+// MultiError handles returning multiple errors.
+type MultiError []error
+
+// Push adds an error to the MultiError slice if err != nil.
+func (me *MultiError) Push(err error) {
+	if err != nil {
+		*me = append(*me, err)
+	}
+}
+
+// Err returns nil if me is empty.
+func (me MultiError) Err() error {
+	if len(me) == 0 {
+		return nil
+	}
+
+	if len(me) == 1 {
+		return me[0]
+	}
+
+	return me
+}
+
+func (me MultiError) Error() string {
+	errs := make([]string, 0, len(me))
+	for _, err := range me {
+		errs = append(errs, err.Error())
+	}
+
+	return "multiple errors returned:\n\t" + strings.Join(errs, "\n\t")
 }

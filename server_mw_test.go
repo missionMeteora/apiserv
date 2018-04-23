@@ -38,6 +38,7 @@ func TestSecureCookie(t *testing.T) {
 	resp.Body.Close()
 
 	cs := resp.Cookies()
+
 	if len(cs) != 1 {
 		t.Fatal("couldn't find the cookie :(")
 	}

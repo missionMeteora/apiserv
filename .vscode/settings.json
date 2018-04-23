@@ -1,3 +1,19 @@
 {
-	"cSpell.enabled": true
+	"cSpell.enabled": true,
+	"cSpell.words": [
+		"apiserv",
+		"cooookie",
+		"cors",
+		"jsonp",
+		"lazybuf",
+		"nsep",
+		"pidx",
+		"protos",
+		"redir",
+		"unmarshal",
+		"unmarshals"
+	],
+
+	"go.lintTool": "gometalinter",
+	"go.lintFlags": [ "--disable=gocyclo", "--disable=errcheck" ]
 }

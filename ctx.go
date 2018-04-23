@@ -3,6 +3,7 @@ package apiserv
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -16,39 +17,38 @@ import (
 	"time"
 
 	"github.com/missionMeteora/apiserv/router"
-	"github.com/missionMeteora/toolkit/errors"
 )
 
-const (
+var (
 	// ErrDir is Returned from ctx.File when the path is a directory not a file.
-	ErrDir = errors.Error("file is a directory")
+	ErrDir = errors.New("file is a directory")
 
 	// ErrInvalidURL gets returned on invalid redirect urls.
-	ErrInvalidURL = errors.Error("invalid redirect error")
+	ErrInvalidURL = errors.New("invalid redirect error")
 
 	// ErrEmptyCallback is returned when a callback is empty
-	ErrEmptyCallback = errors.Error("empty callback")
+	ErrEmptyCallback = errors.New("empty callback")
 
 	// ErrEmptyData is returned when the data payload is empty
-	ErrEmptyData = errors.Error("empty data")
+	ErrEmptyData = errors.New("empty data")
 )
 
 // Context is the default context passed to handlers
 // it is not thread safe and should never be used outside the handler
 type Context struct {
 	Params router.Params
-	Req    *http.Request
 	http.ResponseWriter
+	Req *http.Request
 
-	data ctxValues
+	data M
+	s    *Server
+
+	next   func() Response
+	nextMW func() Response
 
 	status             int
 	hijackServeContent bool
 	done               bool
-
-	s      *Server
-	next   func() Response
-	nextMW func() Response
 }
 
 // Param is a shorthand for ctx.Params.Get(name).
@@ -63,12 +63,15 @@ func (ctx *Context) Query(key string) string {
 
 // Get returns a context value
 func (ctx *Context) Get(key string) interface{} {
-	return ctx.data.Get(key)
+	return ctx.data[key]
 }
 
 // Set sets a context value, useful in passing data to other handlers down the chain
 func (ctx *Context) Set(key string, val interface{}) {
-	ctx.data = ctx.data.Set(key, val)
+	if ctx.data == nil {
+		ctx.data = M{}
+	}
+	ctx.data[key] = val
 }
 
 // WriteReader outputs the data from the passed reader with optional content-type.
@@ -76,6 +79,7 @@ func (ctx *Context) WriteReader(contentType string, r io.Reader) (int64, error) 
 	if contentType != "" {
 		ctx.SetContentType(contentType)
 	}
+
 	return io.Copy(ctx, r)
 }
 
@@ -95,8 +99,10 @@ func (ctx *Context) File(fp string) error {
 	if fi.IsDir() {
 		return ErrDir
 	}
+
 	ctx.hijackServeContent = true
 	http.ServeContent(ctx, ctx.Req, fp, fi.ModTime(), f)
+
 	return nil
 }
 
@@ -154,7 +160,6 @@ func (ctx *Context) BindJSONP(val interface{}) (cb string, err error) {
 	data := ctx.Query("data")
 	if len(data) == 0 {
 		if val != nil {
-			// Cannot parse an empty payload, return
 			err = ErrEmptyData
 		}
 
@@ -162,12 +167,10 @@ func (ctx *Context) BindJSONP(val interface{}) (cb string, err error) {
 	}
 
 	if data, err = url.QueryUnescape(data); err != nil {
-		// Payload is not able to be unescaped, return
 		return
 	}
 
 	if err = json.Unmarshal([]byte(data), val); err != nil {
-		// Error encountered while unmarshaling, return
 		return
 	}
 
@@ -226,7 +229,7 @@ func (ctx *Context) JSONP(code int, callbackKey string, v interface{}) (err erro
 		return
 	}
 
-	_, err = fmt.Fprintf(ctx, "%s(%s)", callbackKey, string(b))
+	_, err = fmt.Fprintf(ctx, "%s(%s);", callbackKey, string(b))
 	return
 }
 
@@ -245,6 +248,7 @@ func (ctx *Context) ClientIP() string {
 				return ip
 			}
 		}
+
 		if ip = strings.TrimSpace(ip); ip != "" {
 			return ip
 		}
@@ -289,8 +293,8 @@ func (ctx *Context) WriteHeader(s int) {
 	if ctx.status = s; ctx.hijackServeContent && ctx.status >= http.StatusMultipleChoices {
 		return
 	}
-	ctx.ResponseWriter.WriteHeader(s)
 
+	ctx.ResponseWriter.WriteHeader(s)
 }
 
 // Write implements http.ResponseWriter
@@ -300,15 +304,18 @@ func (ctx *Context) Write(p []byte) (int, error) {
 		NewJSONErrorResponse(ctx.status, p).WriteToCtx(ctx)
 		return len(p), nil
 	}
+
 	ctx.done = true
+
 	return ctx.ResponseWriter.Write(p)
 }
 
 // Status returns last value written using WriteHeader.
 func (ctx *Context) Status() int {
 	if ctx.status == 0 {
-		return http.StatusOK
+		ctx.status = http.StatusOK
 	}
+
 	return ctx.status
 }
 
@@ -351,7 +358,7 @@ func (ctx *Context) SetCookie(name string, value interface{}, domain string, for
 		}
 	} else if s, ok := value.(string); ok {
 		encValue = s
-	} else if encValue, err = jsonMarshal(value); err != nil {
+	} else if encValue, err = jsonMarshal(false, value); err != nil {
 		return
 	}
 
