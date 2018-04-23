@@ -94,42 +94,25 @@ func AllowCORS(allowedMethods ...string) Handler {
 // M is a QoL shortcut for map[string]interface{}
 type M map[string]interface{}
 
-type ctxValue struct {
-	key   string
-	value interface{}
-}
-
-// this is a cheaper version than using a map and/or context.WithValue
-
-type ctxValues []*ctxValue
-
-func (vs ctxValues) Set(key string, value interface{}) ctxValues {
-	if v := vs.get(key); v != nil {
-		v.value = value
-		return vs
+// ToJSON returns a string json representation of M, mostly for debugging.
+func (m M) ToJSON(indent bool) string {
+	if m == nil {
+		return "{}"
 	}
-
-	return append(vs, &ctxValue{key, value})
+	j, _ := jsonMarshal(indent, m)
+	return j
 }
 
-func (vs ctxValues) Get(key string) interface{} {
-	if v := vs.get(key); v != nil {
-		return v.value
+func jsonMarshal(indent bool, v interface{}) (string, error) {
+	var (
+		j   []byte
+		err error
+	)
+	if indent {
+		j, err = json.MarshalIndent(v, "", "\t")
+	} else {
+		j, err = json.Marshal(v)
 	}
-	return nil
-}
-
-func (vs ctxValues) get(key string) *ctxValue {
-	for _, v := range vs {
-		if v.key == key {
-			return v
-		}
-	}
-	return nil
-}
-
-func jsonMarshal(v interface{}) (string, error) {
-	j, err := json.Marshal(v)
 	return string(j), err
 }
 

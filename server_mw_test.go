@@ -2,7 +2,6 @@ package apiserv
 
 import (
 	"bytes"
-	"log"
 	"net/http"
 	"net/http/cookiejar"
 	"testing"
@@ -19,7 +18,6 @@ func TestSecureCookie(t *testing.T) {
 
 	srv.GET("/", func(ctx *Context) Response {
 		ctx.SetCookie("cooookie", M{"stuff": "and things"}, "", false, time.Hour)
-		log.Println(ctx.Header())
 		return RespOK
 	})
 	srv.GET("/cookie", func(ctx *Context) Response {
@@ -40,7 +38,7 @@ func TestSecureCookie(t *testing.T) {
 	resp.Body.Close()
 
 	cs := resp.Cookies()
-	log.Println(resp)
+
 	if len(cs) != 1 {
 		t.Fatal("couldn't find the cookie :(")
 	}

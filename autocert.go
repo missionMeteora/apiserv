@@ -3,7 +3,6 @@ package apiserv
 import (
 	"crypto/tls"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 
@@ -45,7 +44,7 @@ func (s *Server) RunAutoCert(certCacheDir string, domains ...string) error {
 
 	go func() {
 		if err := http.ListenAndServe(":80", m.HTTPHandler(nil)); err != nil {
-			log.Printf("apiserv: autocert on :80 error: %v", err)
+			s.Logf("apiserv: autocert on :80 error: %v", err)
 		}
 	}()
 

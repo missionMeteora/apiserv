@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"strings"
 )
 
 // Common responses
@@ -23,7 +22,7 @@ var (
 	// Break can be returned from a handler to break a handler chain.
 	// It doesn't write anything to the connection.
 	// if you reassign this, a wild animal will devour your face.
-	Break Response = &JSONResponse{Code: -1}
+	Break Response = &simpleResp{}
 )
 
 // Common mime-types
@@ -51,40 +50,38 @@ func NewJSONResponse(data interface{}) *JSONResponse {
 // ReadJSONResponse reads a response from an io.ReadCloser and closes the body.
 // dataValue is the data type you're expecting, for example:
 //	r, err := ReadJSONResponse(res.Body, &map[string]*Stats{})
-func ReadJSONResponse(rc io.ReadCloser, dataValue interface{}) (rp *JSONResponse, err error) {
-	var r JSONResponse
-	r.Data = dataValue
-	err = json.NewDecoder(rc).Decode(&r)
-	rc.Close()
-	if err != nil {
+func ReadJSONResponse(rc io.ReadCloser, dataValue interface{}) (r *JSONResponse, err error) {
+	defer rc.Close()
+
+	r = &JSONResponse{
+		Data: dataValue,
+	}
+
+	if err = json.NewDecoder(rc).Decode(r); err != nil {
 		return
 	}
 
-	if !r.Success {
-		errs := make([]string, 0, len(r.Errors))
-		for _, v := range r.Errors {
-			if v != nil {
-				errs = append(errs, v.Error())
-			}
-		}
+	if r.Success {
+		return
+	}
 
-		if len(errs) > 0 {
-			return nil, errors.New(strings.Join(errs, "\n"))
-		}
+	var me MultiError
+	for _, v := range r.Errors {
+		me.Push(v)
+	}
 
-		// No error provided, utilize the response status for messaging
+	if err = me.Err(); err == nil {
 		err = errors.New(http.StatusText(r.Code))
 	}
 
-	rp = &r
 	return
 }
 
 // JSONResponse is the default standard api response
 type JSONResponse struct {
-	Code   int         `json:"code"` // if code is not set, it defaults to 200 if error is nil otherwise 400.
-	Data   interface{} `json:"data,omitempty"`
 	Errors []*Error    `json:"errors,omitempty"`
+	Data   interface{} `json:"data,omitempty"`
+	Code   int         `json:"code"` // if code is not set, it defaults to 200 if error is nil otherwise 400.
 
 	Success bool `json:"success"` // automatically set to true if r.Code >= 200 && r.Code < 300.
 	Indent  bool `json:"-"`       // if set to true, the json encoder will output indented json.
@@ -116,18 +113,17 @@ func (r *JSONResponse) WriteToCtx(ctx *Context) error {
 // 2. error
 // 3. Error / *Error
 // 4. another response, its Errors will be appended to the returned Response.
-// 5. if errs is empty, it will call http.StatusText(code) and set that as the error.
-func NewJSONErrorResponse(code int, errs ...interface{}) *JSONResponse {
+// 5. MultiError
+// 6. if errs is empty, it will call http.StatusText(code) and set that as the error.
+func NewJSONErrorResponse(code int, errs ...interface{}) (r *JSONResponse) {
 	if len(errs) == 0 {
 		errs = append(errs, http.StatusText(code))
 	}
 
-	var (
-		r = &JSONResponse{
-			Code:   code,
-			Errors: make([]*Error, 0, len(errs)),
-		}
-	)
+	r = &JSONResponse{
+		Code:   code,
+		Errors: make([]*Error, 0, len(errs)),
+	}
 
 	for _, err := range errs {
 		r.appendErr(err)
@@ -150,6 +146,10 @@ func (r *JSONResponse) appendErr(err interface{}) {
 		r.Errors = append(r.Errors, v.Errors...)
 	case error:
 		r.Errors = append(r.Errors, &Error{Message: v.Error()})
+	case MultiError:
+		for _, err := range v {
+			r.appendErr(err)
+		}
 	default:
 		log.Panicf("unsupported error type (%T): %v", v, v)
 	}
@@ -163,15 +163,8 @@ type Error struct {
 }
 
 func (e *Error) Error() string {
-	if e.Message != "" {
-		return e.Message
-	}
-
-	if e.Field != "" && e.IsMissing {
-		return `field "` + e.Field + `" is missing`
-	}
-
-	return fmt.Sprintf("Error{Message: %q, Field: %q, IsMissing: %v}", e.Message, e.Field, e.IsMissing)
+	j, _ := jsonMarshal(false, e)
+	return j
 }
 
 // Redirect returns a redirect Response.

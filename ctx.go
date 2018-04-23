@@ -37,10 +37,12 @@ var (
 // it is not thread safe and should never be used outside the handler
 type Context struct {
 	Params router.Params
-	data   ctxValues
 	http.ResponseWriter
-	Req    *http.Request
-	s      *Server
+	Req *http.Request
+
+	data M
+	s    *Server
+
 	next   func() Response
 	nextMW func() Response
 
@@ -61,12 +63,15 @@ func (ctx *Context) Query(key string) string {
 
 // Get returns a context value
 func (ctx *Context) Get(key string) interface{} {
-	return ctx.data.Get(key)
+	return ctx.data[key]
 }
 
 // Set sets a context value, useful in passing data to other handlers down the chain
 func (ctx *Context) Set(key string, val interface{}) {
-	ctx.data = ctx.data.Set(key, val)
+	if ctx.data == nil {
+		ctx.data = M{}
+	}
+	ctx.data[key] = val
 }
 
 // WriteReader outputs the data from the passed reader with optional content-type.
@@ -224,7 +229,7 @@ func (ctx *Context) JSONP(code int, callbackKey string, v interface{}) (err erro
 		return
 	}
 
-	_, err = fmt.Fprintf(ctx, "%s(%s)", callbackKey, string(b))
+	_, err = fmt.Fprintf(ctx, "%s(%s);", callbackKey, string(b))
 	return
 }
 
@@ -353,7 +358,7 @@ func (ctx *Context) SetCookie(name string, value interface{}, domain string, for
 		}
 	} else if s, ok := value.(string); ok {
 		encValue = s
-	} else if encValue, err = jsonMarshal(value); err != nil {
+	} else if encValue, err = jsonMarshal(false, value); err != nil {
 		return
 	}
 

@@ -17,7 +17,7 @@ import (
 )
 
 // DefaultOpts are the default options used for creating new servers.
-var DefaultOpts = options{
+var DefaultOpts = Options{
 	WriteTimeout: time.Minute,
 	ReadTimeout:  time.Minute,
 
@@ -25,17 +25,27 @@ var DefaultOpts = options{
 
 	KeepAlivePeriod: 3 * time.Minute, // default value in net/http
 
-	Logger: log.New(os.Stderr, "apiserv: ", log.Lshortfile),
+	Logger: log.New(os.Stderr, "apiserv: ", 0),
 }
 
 // New returns a new server with the specified options.
 func New(opts ...Option) *Server {
-	srv := &Server{
-		opts: DefaultOpts,
-	}
+	srv := NewWithOpts(nil)
 
 	for _, opt := range opts {
 		opt.apply(&srv.opts)
+	}
+
+	return srv
+}
+
+// NewWithOpts allows passing the Options struct directly
+func NewWithOpts(opts *Options) *Server {
+	srv := &Server{}
+
+	if opts == nil {
+		cp := DefaultOpts
+		srv.opts = cp
 	}
 
 	ro := srv.opts.RouterOptions
@@ -43,11 +53,11 @@ func New(opts ...Option) *Server {
 
 	srv.r.PanicHandler = func(w http.ResponseWriter, req *http.Request, v interface{}) {
 		srv.Logf("PANIC (%T): %v", v, v)
-		if srv.PanicHandler != nil {
+		if h := srv.PanicHandler; h != nil {
 			ctx := getCtx(w, req, nil, srv)
 			defer putCtx(ctx)
 
-			srv.PanicHandler(ctx, v)
+			h(ctx, v)
 			return
 		}
 
@@ -59,7 +69,7 @@ func New(opts ...Option) *Server {
 	}
 
 	srv.r.NotFoundHandler = func(w http.ResponseWriter, req *http.Request, p router.Params) {
-		if srv.NotFoundHandler != nil {
+		if h := srv.NotFoundHandler; h != nil {
 			ctx := getCtx(w, req, p, srv)
 			defer putCtx(ctx)
 			srv.NotFoundHandler(ctx)
@@ -79,18 +89,19 @@ func New(opts ...Option) *Server {
 
 // Server is the main server
 type Server struct {
-	r    *router.Router
-	opts options
+	opts    Options
+	servers []*http.Server
+
+	r *router.Router
 
 	serversMux sync.Mutex
-	servers    []*http.Server
-
-	closed int32
 
 	PanicHandler    func(ctx *Context, v interface{})
 	NotFoundHandler func(ctx *Context)
 
 	*group
+
+	closed int32
 }
 
 // ServeHTTP allows using the server in custom scenarios that expects an http.Handler.

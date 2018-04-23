@@ -8,6 +8,7 @@
 		"lazybuf",
 		"nsep",
 		"pidx",
+		"protos",
 		"redir",
 		"unmarshal",
 		"unmarshals"
