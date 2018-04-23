@@ -7,6 +7,8 @@ import (
 	"io"
 	"log"
 	"net/http"
+
+	tkErrors "github.com/missionMeteora/toolkit/errors"
 )
 
 // Common responses
@@ -130,6 +132,19 @@ func NewJSONErrorResponse(code int, errs ...interface{}) (r *JSONResponse) {
 	}
 
 	return r
+}
+
+// ErrorList returns an errors.ErrorList of this response's errors or nil.
+// Deprecated: handled using MultiError
+func (r *JSONResponse) ErrorList() *tkErrors.ErrorList {
+	if len(r.Errors) == 0 {
+		return nil
+	}
+	var el tkErrors.ErrorList
+	for _, err := range r.Errors {
+		el.Push(err)
+	}
+	return &el
 }
 
 func (r *JSONResponse) appendErr(err interface{}) {
