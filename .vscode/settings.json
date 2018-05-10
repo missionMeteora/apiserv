@@ -1,11 +1,16 @@
 {
 	"cSpell.enabled": true,
 	"cSpell.words": [
+		"HSTS",
 		"apiserv",
+		"apiutils",
 		"cooookie",
 		"cors",
+		"dgrijalva",
 		"jsonp",
 		"lazybuf",
+		"noindex",
+		"noopen",
 		"nsep",
 		"pidx",
 		"protos",
@@ -15,5 +20,5 @@
 	],
 
 	"go.lintTool": "gometalinter",
-	"go.lintFlags": [ "--disable=gocyclo", "--disable=errcheck" ]
+	"go.lintFlags": ["--disable=gocyclo", "--disable=errcheck", "--fast"]
 }

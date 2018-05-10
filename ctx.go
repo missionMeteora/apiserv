@@ -41,7 +41,8 @@ type Context struct {
 	Req *http.Request
 
 	data M
-	s    *Server
+
+	s *Server
 
 	next   func() Response
 	nextMW func() Response
@@ -61,6 +62,14 @@ func (ctx *Context) Query(key string) string {
 	return ctx.Req.URL.Query().Get(key)
 }
 
+// QueryDefault returns the query key or a default value.
+func (ctx *Context) QueryDefault(key, def string) string {
+	if v := ctx.Req.URL.Query().Get(key); v != "" {
+		return v
+	}
+	return def
+}
+
 // Get returns a context value
 func (ctx *Context) Get(key string) interface{} {
 	return ctx.data[key]
@@ -68,9 +77,6 @@ func (ctx *Context) Get(key string) interface{} {
 
 // Set sets a context value, useful in passing data to other handlers down the chain
 func (ctx *Context) Set(key string, val interface{}) {
-	if ctx.data == nil {
-		ctx.data = M{}
-	}
 	ctx.data[key] = val
 }
 
@@ -121,9 +127,14 @@ func (ctx *Context) SetContentType(typ string) {
 	h.Set("X-Content-Type-Options", "nosniff") // fixes IE xss exploit
 }
 
+// ReqHeader returns the request header.
+func (ctx *Context) ReqHeader() http.Header {
+	return ctx.Req.Header
+}
+
 // ContentType returns the request's content-type.
 func (ctx *Context) ContentType() string {
-	return ctx.Req.Header.Get("Content-Type")
+	return ctx.ReqHeader().Get("Content-Type")
 }
 
 // Read is a QoL shorthand for ctx.Req.Body.Read.
@@ -433,14 +444,15 @@ func (ctx *Context) SetStdContext(c context.Context) {
 }
 
 var ctxPool = sync.Pool{
-	New: func() interface{} { return &Context{} },
+	New: func() interface{} {
+		return &Context{
+			data: M{},
+		}
+	},
 }
 
 func getCtx(rw http.ResponseWriter, req *http.Request, p router.Params, s *Server) *Context {
-	ctx, ok := ctxPool.Get().(*Context)
-	if !ok {
-		ctx = &Context{}
-	}
+	ctx := ctxPool.Get().(*Context)
 
 	ctx.ResponseWriter, ctx.Req = rw, req
 	ctx.Params, ctx.s = p, s
@@ -449,6 +461,15 @@ func getCtx(rw http.ResponseWriter, req *http.Request, p router.Params, s *Serve
 }
 
 func putCtx(ctx *Context) {
-	*ctx = Context{}
+	m := ctx.data
+
+	// this looks like a bad idea, but it's an optimization in go 1.11, minor perf hit on 1.10
+	for k := range m {
+		delete(m, k)
+	}
+
+	*ctx = Context{
+		data: m,
+	}
 	ctxPool.Put(ctx)
 }
