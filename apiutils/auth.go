@@ -15,15 +15,34 @@ type (
 	// StandardClaims is an alias for jwt.StandardClaims
 	StandardClaims = jwt.StandardClaims
 
-	// Token is an alias for jwt.Token
-	Token = jwt.Token
-
-	// KeyFunc is an alias for jwt.Keyfunc
-	KeyFunc = jwt.Keyfunc
-
-	// AuthKeyFunc is called in the SignIn middleware, should either return a signing key (usually []byte) or an error
-	AuthKeyFunc = func(ctx *apiserv.Context, preSignedToken *Token) (key interface{}, err error)
+	// TokenKeyFunc is a callback to return a key for the given token
+	TokenKeyFunc = func(ctx *apiserv.Context, tok Token) (key interface{}, err error)
 )
+
+type Token struct {
+	*jwt.Token
+}
+
+// GetOk only works with MapClaims
+func (t Token) GetOk(key string) (v interface{}, ok bool) {
+	m, _ := t.Claims.(MapClaims)
+	v, ok = m[key]
+	return
+}
+
+// Get only works with MapClaims
+func (t Token) Get(key string) interface{} {
+	v, _ := t.GetOk(key)
+	return v
+}
+
+func (t Token) Set(k string, v interface{}) (ok bool) {
+	var m MapClaims
+	if m, ok = t.Claims.(MapClaims); ok {
+		m[k] = v
+	}
+	return
+}
 
 const (
 	// TokenContextKey is the key used to access the saved token inside an apiserv.Context.
@@ -44,10 +63,10 @@ var DefaultAuth = &Auth{
 }
 
 // NewAuth returns a new Auth struct with the given keyForUser and the defaults from DefaultAuth
-func NewAuth(checkTokenFn KeyFunc, authKeyFunc AuthKeyFunc) (a *Auth) {
+func NewAuth(checkTokenFn TokenKeyFunc, authKeyFunc TokenKeyFunc) (a *Auth) {
 	return &Auth{
-		CheckTokenFunc: checkTokenFn,
-		AuthKeyFunc:    authKeyFunc,
+		CheckToken: checkTokenFn,
+		AuthToken:  authKeyFunc,
 
 		SigningMethod: DefaultAuth.SigningMethod,
 		Extractor:     DefaultAuth.Extractor,
@@ -62,17 +81,19 @@ type Auth struct {
 
 	NewClaims func() jwt.Claims
 
-	// CheckTokenFunc is used inside the CheckAuth middleware.
-	CheckTokenFunc KeyFunc
+	// TokenKey is used inside the CheckAuth middleware.
+	CheckToken TokenKeyFunc
 
 	// AuthKeyFunc is used inside the SignIn middleware.
-	AuthKeyFunc AuthKeyFunc
+	AuthToken TokenKeyFunc
 }
 
 // CheckAuth handles checking auth headers.
 // If the token is valid, it is set to the ctx using the TokenContextKey.
 func (a *Auth) CheckAuth(ctx *apiserv.Context) apiserv.Response {
-	tok, err := jwtReq.ParseFromRequest(ctx.Req, a.Extractor, a.CheckTokenFunc,
+	tok, err := jwtReq.ParseFromRequest(ctx.Req, a.Extractor, func(tok *jwt.Token) (interface{}, error) {
+		return a.CheckToken(ctx, Token{tok})
+	},
 		jwtReq.WithClaims(a.NewClaims()))
 
 	if err != nil {
@@ -88,19 +109,19 @@ func (a *Auth) CheckAuth(ctx *apiserv.Context) apiserv.Response {
 // Can be chained with SignUp if needed.
 func (a *Auth) SignIn(ctx *apiserv.Context) apiserv.Response {
 	tok := jwt.NewWithClaims(a.SigningMethod, a.NewClaims())
-	key, err := a.AuthKeyFunc(ctx, tok)
+	key, err := a.AuthToken(ctx, Token{tok})
 	if err != nil {
 		return apiserv.NewJSONErrorResponse(http.StatusUnauthorized, err)
 	}
 
-	if _, err := a.signAndSetHeaders(ctx, tok, key); err != nil {
+	if _, err := a.signAndSetHeaders(ctx, Token{tok}, key); err != nil {
 		// only reason this would return an error is if there's something wrong with json.Marshal
 		return apiserv.NewJSONErrorResponse(http.StatusInternalServerError, err)
 	}
 	return nil
 }
 
-func (a *Auth) signAndSetHeaders(ctx *apiserv.Context, tok *Token, key interface{}) (signedString string, err error) {
+func (a *Auth) signAndSetHeaders(ctx *apiserv.Context, tok Token, key interface{}) (signedString string, err error) {
 	if signedString, err = tok.SignedString(key); err != nil {
 		// only reason this would return an error is if there's something wrong with json.Marshal
 		return
