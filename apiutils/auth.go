@@ -3,8 +3,6 @@ package apiutils
 import (
 	"errors"
 	"net/http"
-	"strings"
-	"sync"
 
 	jwt "github.com/dgrijalva/jwt-go"
 	jwtReq "github.com/dgrijalva/jwt-go/request"
@@ -39,7 +37,7 @@ var (
 
 // DefaultAuth has the default values for Auth
 var DefaultAuth = &Auth{
-	SighingMethod: jwt.SigningMethodHS256,
+	SigningMethod: jwt.SigningMethodHS256,
 	Extractor:     jwtReq.AuthorizationHeaderExtractor,
 
 	NewClaims: func() jwt.Claims { return jwt.MapClaims{} },
@@ -50,11 +48,16 @@ func NewAuth(checkTokenFn KeyFunc, authKeyFunc AuthKeyFunc) (a *Auth) {
 	return &Auth{
 		CheckTokenFunc: checkTokenFn,
 		AuthKeyFunc:    authKeyFunc,
+
+		SigningMethod: DefaultAuth.SigningMethod,
+		Extractor:     DefaultAuth.Extractor,
+		NewClaims:     DefaultAuth.NewClaims,
 	}
 }
 
+// Auth is a simple handler for authorization using JWT with a simple
 type Auth struct {
-	SighingMethod jwt.SigningMethod
+	SigningMethod jwt.SigningMethod
 	Extractor     jwtReq.Extractor
 
 	NewClaims func() jwt.Claims
@@ -64,15 +67,11 @@ type Auth struct {
 
 	// AuthKeyFunc is used inside the SignIn middleware.
 	AuthKeyFunc AuthKeyFunc
-
-	io sync.Once
 }
 
 // CheckAuth handles checking auth headers.
 // If the token is valid, it is set to the ctx using the TokenContextKey.
 func (a *Auth) CheckAuth(ctx *apiserv.Context) apiserv.Response {
-	a.init()
-
 	tok, err := jwtReq.ParseFromRequest(ctx.Req, a.Extractor, a.CheckTokenFunc,
 		jwtReq.WithClaims(a.NewClaims()))
 
@@ -86,25 +85,22 @@ func (a *Auth) CheckAuth(ctx *apiserv.Context) apiserv.Response {
 
 // SignIn handles signing by calling Auth.AuthKeyFunc, if the func returns a key it signs the token and
 // sets the Authorization: Bearer header.
-// Can be chained with
+// Can be chained with SignUp if needed.
 func (a *Auth) SignIn(ctx *apiserv.Context) apiserv.Response {
-	a.init()
-
-	tok := jwt.NewWithClaims(a.SighingMethod, a.NewClaims())
+	tok := jwt.NewWithClaims(a.SigningMethod, a.NewClaims())
 	key, err := a.AuthKeyFunc(ctx, tok)
 	if err != nil {
 		return apiserv.NewJSONErrorResponse(http.StatusUnauthorized, err)
 	}
 
-	if _, err := a.SignInAndSetHeaders(ctx, tok, key); err != nil {
+	if _, err := a.signAndSetHeaders(ctx, tok, key); err != nil {
 		// only reason this would return an error is if there's something wrong with json.Marshal
 		return apiserv.NewJSONErrorResponse(http.StatusInternalServerError, err)
 	}
 	return nil
 }
 
-// SignAndSetHeaders
-func (a *Auth) SignInAndSetHeaders(ctx *apiserv.Context, tok *Token, key interface{}) (signedString string, err error) {
+func (a *Auth) signAndSetHeaders(ctx *apiserv.Context, tok *Token, key interface{}) (signedString string, err error) {
 	if signedString, err = tok.SignedString(key); err != nil {
 		// only reason this would return an error is if there's something wrong with json.Marshal
 		return
@@ -113,53 +109,4 @@ func (a *Auth) SignInAndSetHeaders(ctx *apiserv.Context, tok *Token, key interfa
 	ctx.Set(TokenContextKey, tok)
 	ctx.Header().Set("Authorization", "Bearer "+signedString)
 	return
-}
-
-func (a *Auth) init() {
-	a.io.Do(func() {
-		if a == DefaultAuth { // sanity check, probably should panic here, but we'll play nice
-			return
-		}
-
-		if a.SighingMethod == nil {
-			a.SighingMethod = DefaultAuth.SighingMethod
-		}
-
-		if a.Extractor == nil {
-			a.Extractor = DefaultAuth.Extractor
-		}
-
-		if a.NewClaims == nil {
-			a.NewClaims = DefaultAuth.NewClaims
-		}
-	})
-}
-
-// ParseJWT parses a token out of a context, returns nil
-func ParseJWT(ctx *apiserv.Context, claims jwt.Claims, keyFunc jwt.Keyfunc) (*jwt.Token, error) {
-	h := ctx.Req.Header.Get("Authorization")
-	if !strings.HasPrefix(h, "Bearer ") {
-		return nil, ErrNoAuthHeader
-	}
-
-	if claims == nil {
-		claims = jwt.MapClaims{}
-	}
-
-	return jwt.ParseWithClaims(strings.TrimSpace(h[7:]), claims, keyFunc)
-}
-
-// MakeJWTWithMethod is a wrapper around creating a new token and signing it
-func MakeJWTWithMethod(method jwt.SigningMethod, claims jwt.Claims, key interface{}) (string, error) {
-	if claims == nil {
-		claims = jwt.MapClaims{}
-	}
-	t := jwt.NewWithClaims(method, claims)
-
-	return t.SignedString(key)
-}
-
-// MakeJWT returns MakeJWTWithMethod(jwt.SigningMethodHS256, claims, key)
-func MakeJWT(claims jwt.Claims, key []byte) (string, error) {
-	return MakeJWTWithMethod(jwt.SigningMethodHS256, claims, key)
 }
