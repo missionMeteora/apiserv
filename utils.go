@@ -69,26 +69,57 @@ func StaticDirWithLimit(dir, paramName string, limit int) Handler {
 }
 
 // AllowCORS allows CORS responses.
-// If allowedMethods is empty, it will respond with the requested method.
-func AllowCORS(allowedMethods ...string) Handler {
-	ams := strings.Join(allowedMethods, ", ")
-	return func(ctx *Context) Response {
+// If methods is empty, it will respond with the requested method.
+// If headers is empty, it will respond with the requested headers.
+// If origins is empty, it will respond with the requested origin.
+// will automatically install an OPTIONS handler to each passed group.
+func AllowCORS(methods, headers, origins []string, groups ...Group) Handler {
+	ms := strings.Join(methods, ", ")
+	hs := strings.Join(headers, ", ")
+
+	om := map[string]bool{}
+	for _, orig := range origins {
+		om[orig] = true
+	}
+
+	fn := func(ctx *Context) Response {
 		rh, wh := ctx.Req.Header, ctx.Header()
+		origin := rh.Get("Origin")
 
-		wh.Set("Access-Control-Allow-Origin", rh.Get("Origin"))
+		if origin == "" { // return early if it's not a browser request
+			return nil
+		}
 
-		if len(ams) == 0 {
+		if len(om) == 0 || om[origin] {
+			wh.Set("Access-Control-Allow-Origin", origin)
+		}
+
+		if ctx.Req.Method != "OPTIONS" {
+			// the rest of this function is only needed
+			return nil
+		}
+
+		if len(ms) == 0 {
 			wh.Set("Access-Control-Allow-Methods", rh.Get("Access-Control-Request-Method"))
 		} else {
-			wh.Set("Access-Control-Allow-Methods", ams)
+			wh.Set("Access-Control-Allow-Methods", ms)
 		}
-		if reqHeaders := rh.Get("Access-Control-Request-Headers"); reqHeaders != "" {
-			wh.Set("Access-Control-Allow-Headers", reqHeaders)
+
+		if len(hs) == 0 {
+			wh.Set("Access-Control-Allow-Headers", rh.Get("Access-Control-Request-Headers"))
+		} else {
+			wh.Set("Access-Control-Allow-Headers", hs)
 		}
 
 		wh.Set("Access-Control-Max-Age", "86400") // 24 hours
-		return RespOK
+		return nil
 	}
+
+	for _, g := range groups {
+		g.AddRoute("OPTIONS", "/*x", fn)
+	}
+
+	return fn
 }
 
 // M is a QoL shortcut for map[string]interface{}
