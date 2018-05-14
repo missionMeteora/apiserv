@@ -111,6 +111,7 @@ func AllowCORS(methods, headers, origins []string, groups ...Group) Handler {
 			wh.Set("Access-Control-Allow-Headers", hs)
 		}
 
+		wh.Set("Access-Control-Allow-Credentials", "true")
 		wh.Set("Access-Control-Max-Age", "86400") // 24 hours
 		return nil
 	}
