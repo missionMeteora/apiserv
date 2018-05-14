@@ -82,21 +82,24 @@ func AllowCORS(methods, headers, origins []string, groups ...Group) Handler {
 		om[orig] = true
 	}
 
-	fn := func(ctx *Context) Response {
+	fn := func(ctx *Context) (_ Response) {
 		rh, wh := ctx.Req.Header, ctx.Header()
 		origin := rh.Get("Origin")
 
 		if origin == "" { // return early if it's not a browser request
-			return nil
+			return
 		}
 
 		if len(om) == 0 || om[origin] {
 			wh.Set("Access-Control-Allow-Origin", origin)
+			wh.Set("Access-Control-Allow-Credentials", "true")
+		} else {
+			return
 		}
 
 		if ctx.Req.Method != "OPTIONS" {
 			// the rest of this function is only needed
-			return nil
+			return
 		}
 
 		if len(ms) == 0 {
@@ -111,9 +114,9 @@ func AllowCORS(methods, headers, origins []string, groups ...Group) Handler {
 			wh.Set("Access-Control-Allow-Headers", hs)
 		}
 
-		wh.Set("Access-Control-Allow-Credentials", "true")
 		wh.Set("Access-Control-Max-Age", "86400") // 24 hours
-		return nil
+
+		return
 	}
 
 	for _, g := range groups {

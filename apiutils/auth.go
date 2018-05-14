@@ -16,7 +16,7 @@ type (
 	StandardClaims = jwt.StandardClaims
 
 	// TokenKeyFunc is a callback to return a key for the given token
-	TokenKeyFunc = func(ctx *apiserv.Context, tok Token) (key interface{}, err error)
+	TokenKeyFunc = func(ctx *apiserv.Context, tok Token) (extra apiserv.M, key interface{}, err error)
 )
 
 type Token struct {
@@ -91,16 +91,22 @@ type Auth struct {
 // CheckAuth handles checking auth headers.
 // If the token is valid, it is set to the ctx using the TokenContextKey.
 func (a *Auth) CheckAuth(ctx *apiserv.Context) apiserv.Response {
-	tok, err := jwtReq.ParseFromRequest(ctx.Req, a.Extractor, func(tok *jwt.Token) (interface{}, error) {
-		return a.CheckToken(ctx, Token{tok})
-	},
-		jwtReq.WithClaims(a.NewClaims()))
+	var extra apiserv.M
+	tok, err := jwtReq.ParseFromRequest(ctx.Req, a.Extractor, func(tok *jwt.Token) (key interface{}, err error) {
+		extra, key, err = a.CheckToken(ctx, Token{tok})
+		return
+	}, jwtReq.WithClaims(a.NewClaims()))
 
 	if err != nil {
 		return apiserv.NewJSONErrorResponse(http.StatusUnauthorized, err)
 	}
 
 	ctx.Set(TokenContextKey, tok)
+
+	if len(extra) > 0 {
+		return apiserv.NewJSONResponse(extra)
+	}
+
 	return nil
 }
 
@@ -109,16 +115,24 @@ func (a *Auth) CheckAuth(ctx *apiserv.Context) apiserv.Response {
 // Can be chained with SignUp if needed.
 func (a *Auth) SignIn(ctx *apiserv.Context) apiserv.Response {
 	tok := jwt.NewWithClaims(a.SigningMethod, a.NewClaims())
-	key, err := a.AuthToken(ctx, Token{tok})
+	extra, key, err := a.AuthToken(ctx, Token{tok})
 	if err != nil {
 		return apiserv.NewJSONErrorResponse(http.StatusUnauthorized, err)
 	}
 
-	if _, err := a.signAndSetHeaders(ctx, Token{tok}, key); err != nil {
+	signed, err := a.signAndSetHeaders(ctx, Token{tok}, key)
+	if err != nil {
 		// only reason this would return an error is if there's something wrong with json.Marshal
 		return apiserv.NewJSONErrorResponse(http.StatusInternalServerError, err)
 	}
-	return nil
+
+	if extra == nil {
+		extra = apiserv.M{}
+	}
+
+	extra["access_token"] = signed
+
+	return apiserv.NewJSONResponse(extra)
 }
 
 func (a *Auth) signAndSetHeaders(ctx *apiserv.Context, tok Token, key interface{}) (signedString string, err error) {
@@ -128,6 +142,5 @@ func (a *Auth) signAndSetHeaders(ctx *apiserv.Context, tok Token, key interface{
 	}
 
 	ctx.Set(TokenContextKey, tok)
-	ctx.Header().Set("Authorization", "Bearer "+signedString)
 	return
 }
