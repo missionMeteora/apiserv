@@ -2,9 +2,10 @@ package router
 
 import (
 	"fmt"
-	"io"
+	"io/ioutil"
 	"net/http"
 	"regexp"
+	"strings"
 )
 
 type nodePart string
@@ -91,10 +92,16 @@ func revSplitPathFn(s string, sep uint8, fn func(p string, pidx, idx int) bool) 
 
 type headRW struct {
 	http.ResponseWriter
-	d io.Writer
 }
 
-func (w *headRW) Write(p []byte) (int, error) { return w.d.Write(p) }
+func (w *headRW) Write(p []byte) (int, error) { return ioutil.Discard.Write(p) }
+
+func pathNoQuery(p string) string {
+	if idx := strings.IndexByte(p, '?'); idx != -1 {
+		return p[:idx]
+	}
+	return p
+}
 
 // based on https://github.com/gin-gonic/gin/blob/a8fa424ae529397d4a0f2a1f9fda8031851a3269/path.go#L21
 // cleanPath is the URL version of path.Clean, it returns a canonical URL path

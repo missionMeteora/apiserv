@@ -47,11 +47,12 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		w, method = &headRW{ResponseWriter: w}, http.MethodGet
 	}
 
-	if h, p := r.match(method, u); h != nil {
+	if h, p := r.match(method, pathNoQuery(u)); h != nil {
 		h(w, req, p.Params())
 		r.putParams(p)
 		return
 	}
+
 	if method == http.MethodGet {
 		if r.NotFoundHandler != nil {
 			r.NotFoundHandler(w, req, nil)
