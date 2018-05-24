@@ -57,19 +57,27 @@ var (
 // DefaultAuth has the default values for Auth
 var DefaultAuth = &Auth{
 	SigningMethod: jwt.SigningMethodHS256,
-	Extractor:     jwtReq.AuthorizationHeaderExtractor,
+	Extractor:     *jwtReq.OAuth2Extractor,
 
 	NewClaims: func() jwt.Claims { return jwt.MapClaims{} },
 }
 
 // NewAuth returns a new Auth struct with the given keyForUser and the defaults from DefaultAuth
-func NewAuth(checkTokenFn TokenKeyFunc, authKeyFunc TokenKeyFunc) (a *Auth) {
+func NewAuth(checkTokenFn TokenKeyFunc, authKeyFunc TokenKeyFunc, extractors ...jwtReq.Extractor) (a *Auth) {
+	var cookies []string
+	for _, e := range extractors {
+		if e, ok := e.(CookieExtractor); ok {
+			cookies = append(cookies, e...)
+		}
+	}
+
 	return &Auth{
-		CheckToken: checkTokenFn,
-		AuthToken:  authKeyFunc,
+		CheckToken:  checkTokenFn,
+		AuthToken:   authKeyFunc,
+		AuthCookies: cookies,
 
 		SigningMethod: DefaultAuth.SigningMethod,
-		Extractor:     DefaultAuth.Extractor,
+		Extractor:     append(extractors, DefaultAuth.Extractor...),
 		NewClaims:     DefaultAuth.NewClaims,
 	}
 }
@@ -77,7 +85,11 @@ func NewAuth(checkTokenFn TokenKeyFunc, authKeyFunc TokenKeyFunc) (a *Auth) {
 // Auth is a simple handler for authorization using JWT with a simple
 type Auth struct {
 	SigningMethod jwt.SigningMethod
-	Extractor     jwtReq.Extractor
+	Extractor     jwtReq.MultiExtractor
+
+	AuthCookies []string
+	CookieHost  string
+	CookieHTTPS bool
 
 	NewClaims func() jwt.Claims
 
@@ -142,5 +154,10 @@ func (a *Auth) signAndSetHeaders(ctx *apiserv.Context, tok Token, key interface{
 	}
 
 	ctx.Set(TokenContextKey, tok)
+
+	for _, c := range a.AuthCookies {
+		ctx.SetCookie(c, signedString, a.CookieHost, a.CookieHTTPS, 0)
+	}
+
 	return
 }
