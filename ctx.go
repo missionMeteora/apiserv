@@ -97,6 +97,7 @@ func (ctx *Context) File(fp string) error {
 		return err
 	}
 	defer f.Close()
+
 	fi, err := f.Stat()
 	if err != nil {
 		return err
@@ -107,7 +108,7 @@ func (ctx *Context) File(fp string) error {
 	}
 
 	ctx.hijackServeContent = true
-	http.ServeContent(ctx, ctx.Req, fp, fi.ModTime(), f)
+	http.ServeContent(ctx, ctx.Req, f.Name(), fi.ModTime(), f)
 
 	return nil
 }

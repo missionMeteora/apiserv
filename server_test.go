@@ -153,7 +153,7 @@ func TestServer(t *testing.T) {
 		}
 
 		if !bytes.Equal(readme, b) {
-			t.Fatal("files not equal")
+			t.Fatal("files not equal", string(b))
 		}
 
 		res, err = http.Get(ts.URL + "/s-std/router/README.md")
@@ -185,6 +185,22 @@ func TestServer(t *testing.T) {
 		}
 
 		if !bytes.Contains(b, []byte(`<a href=".git/">.git/</a>`)) {
+			t.Fatal("unexpected output", string(b))
+		}
+
+		res, err = http.Get(ts.URL + "/s")
+
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		b, err = ioutil.ReadAll(res.Body)
+		res.Body.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !bytes.Contains(b, []byte(`404 page not found`)) {
 			t.Fatal("unexpected output", string(b))
 		}
 

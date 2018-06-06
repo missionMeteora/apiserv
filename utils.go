@@ -27,19 +27,26 @@ func FromHTTPHandlerFunc(h http.HandlerFunc) Handler {
 }
 
 // StaticDirStd is a QoL wrapper for http.FileServer(http.Dir(dir)).
-func StaticDirStd(prefix, dir string) Handler {
-	h := http.StripPrefix(prefix, http.FileServer(http.Dir(dir)))
-	return FromHTTPHandler(h)
+func StaticDirStd(prefix, dir string, allowListing bool) Handler {
+	var fs http.FileSystem
+	if allowListing {
+		fs = http.Dir(dir)
+	} else {
+		fs = noListingDir(dir)
+	}
+	return FromHTTPHandler(http.StripPrefix(prefix, http.FileServer(fs)))
 }
 
 // StaticDir is a shorthand for StaticDirWithLimit(dir, paramName, -1).
 func StaticDir(dir, paramName string) Handler {
-	return StaticDirWithLimit(dir, paramName, -1)
+	return StaticDirStd("", dir, false)
+	//return StaticDirWithLimit(dir, paramName, -1)
 }
 
 // StaticDirWithLimit returns a handler that handles serving static files.
 // paramName is the path param, for example: s.GET("/s/*fp", StaticDirWithLimit("./static/", "fp", 1000)).
 // if limit is > 0, it will only ever serve N files at a time.
+// BUG: returns 0 size for some reason
 func StaticDirWithLimit(dir, paramName string, limit int) Handler {
 	var (
 		sem chan struct{}
@@ -66,6 +73,25 @@ func StaticDirWithLimit(dir, paramName string, limit int) Handler {
 
 		return nil
 	}
+}
+
+type noListingDir string
+
+func (d noListingDir) Open(name string) (f http.File, err error) {
+	const indexName = "/index.html"
+	hd := http.Dir(d)
+
+	if f, err = hd.Open(name); err != nil {
+		return
+	}
+
+	if s, _ := f.Stat(); s != nil && s.IsDir() {
+		f.Close()
+		index := strings.TrimSuffix(name, "/") + "/index.html"
+		return hd.Open(index)
+	}
+
+	return
 }
 
 // AllowCORS allows CORS responses.

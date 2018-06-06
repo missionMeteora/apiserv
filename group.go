@@ -82,22 +82,12 @@ func (g *group) DELETE(path string, handlers ...Handler) error {
 	return g.AddRoute(http.MethodDelete, path, handlers...)
 }
 
-func (g *group) staticStd(path, localPath string) error {
+func (g *group) Static(path, localPath string, allowListing bool) error {
 	if strings.HasSuffix(path, "/") { // make sure the path doesn't end in / or StaticDirStd will break
 		path = strings.TrimSuffix(path, "/")
 	}
-	h := StaticDirStd(path, localPath)
-	if err := g.AddRoute(http.MethodGet, joinPath(path, "*fp"), h); err != nil {
-		return err
-	}
-	return g.AddRoute(http.MethodGet, path, h)
-}
 
-func (g *group) Static(path, localPath string, allowListing bool) error {
-	if allowListing {
-		return g.staticStd(path, localPath)
-	}
-	return g.AddRoute(http.MethodGet, joinPath(path, "*fp"), StaticDir(localPath, "fp"))
+	return g.AddRoute(http.MethodGet, joinPath(path, "*fp"), StaticDirStd(path, localPath, allowListing))
 }
 
 func (g *group) StaticFile(path, localPath string) error {
