@@ -223,7 +223,11 @@ func (ctx *Context) JSON(code int, indent bool, v interface{}) error {
 		ctx.WriteHeader(code)
 	}
 
-	return enc.Encode(v)
+	err := enc.Encode(v)
+	if err != nil {
+		ctx.s.Logf("json error: %v", err)
+	}
+	return err
 }
 
 // JSONP outputs a jsonP object, it is highly recommended to return *Response rather than use this directly.
