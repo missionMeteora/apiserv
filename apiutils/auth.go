@@ -1,8 +1,10 @@
 package apiutils
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	jwt "github.com/dgrijalva/jwt-go"
 	jwtReq "github.com/dgrijalva/jwt-go/request"
@@ -44,6 +46,23 @@ func (t Token) Set(k string, v interface{}) (ok bool) {
 	return
 }
 
+// SetExpiry sets the expiry date of the token, ts is time.Time{}.Unix().
+func (t Token) SetExpiry(ts int64) (ok bool) {
+	return t.Set("exp", float64(ts))
+}
+
+func (t Token) Expiry() (ts int64, ok bool) {
+	switch v := t.Get("exp").(type) {
+	case json.Number:
+		i, err := v.Int64()
+		return i, err == nil
+	case float64:
+		return int64(v), true
+	default:
+		return 0, false
+	}
+}
+
 const (
 	// TokenContextKey is the key used to access the saved token inside an apiserv.Context.
 	TokenContextKey = ":JTK:"
@@ -60,6 +79,10 @@ var DefaultAuth = &Auth{
 	Extractor:     *jwtReq.OAuth2Extractor,
 
 	NewClaims: func() jwt.Claims { return jwt.MapClaims{} },
+}
+
+var DefaultParser = &jwt.Parser{
+	UseJSONNumber: true,
 }
 
 // NewAuth returns a new Auth struct with the given keyForUser and the defaults from DefaultAuth
@@ -107,7 +130,7 @@ func (a *Auth) CheckAuth(ctx *apiserv.Context) apiserv.Response {
 	tok, err := jwtReq.ParseFromRequest(ctx.Req, a.Extractor, func(tok *jwt.Token) (key interface{}, err error) {
 		extra, key, err = a.CheckToken(ctx, Token{tok})
 		return
-	}, jwtReq.WithClaims(a.NewClaims()))
+	}, jwtReq.WithClaims(a.NewClaims()), jwtReq.WithParser(DefaultParser))
 
 	if err != nil {
 		return apiserv.NewJSONErrorResponse(http.StatusUnauthorized, err)
@@ -155,8 +178,13 @@ func (a *Auth) signAndSetHeaders(ctx *apiserv.Context, tok Token, key interface{
 
 	ctx.Set(TokenContextKey, tok)
 
+	exp, ok := tok.Expiry()
+	if ok && exp > 0 {
+		exp = exp - time.Now().Unix()
+	}
+
 	for _, c := range a.AuthCookies {
-		ctx.SetCookie(c, signedString, a.CookieHost, a.CookieHTTPS, 0)
+		ctx.SetCookie(c, signedString, a.CookieHost, a.CookieHTTPS, time.Duration(exp))
 	}
 
 	return
