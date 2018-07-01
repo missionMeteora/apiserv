@@ -1,7 +1,6 @@
 package apiserv
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -438,16 +437,6 @@ func (ctx *Context) GetCookieValue(name string, valDst interface{}) error {
 	return json.Unmarshal([]byte(c.Value), valDst)
 }
 
-// StdContext returns the context.Context associated with this Context's Request.
-func (ctx *Context) StdContext() context.Context {
-	return ctx.Req.Context()
-}
-
-// SetStdContext sets the current Context Request's context.Context.
-func (ctx *Context) SetStdContext(c context.Context) {
-	ctx.Req = ctx.Req.WithContext(c)
-}
-
 var ctxPool = sync.Pool{
 	New: func() interface{} {
 		return &Context{
@@ -476,5 +465,6 @@ func putCtx(ctx *Context) {
 	*ctx = Context{
 		data: m,
 	}
+
 	ctxPool.Put(ctx)
 }
