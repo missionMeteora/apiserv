@@ -180,7 +180,7 @@ func (a *Auth) signAndSetHeaders(ctx *apiserv.Context, tok Token, key interface{
 
 	exp, ok := tok.Expiry()
 	if ok && exp > 0 {
-		exp = exp - time.Now().Unix()
+		exp = int64(time.Unix(exp, 0).Sub(time.Now()))
 	}
 
 	for _, c := range a.AuthCookies {
