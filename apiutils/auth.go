@@ -184,7 +184,9 @@ func (a *Auth) signAndSetHeaders(ctx *apiserv.Context, tok Token, key interface{
 	}
 
 	for _, c := range a.AuthCookies {
-		ctx.SetCookie(c, signedString, a.CookieHost, a.CookieHTTPS, time.Duration(exp))
+		if err = ctx.SetCookie(c, signedString, a.CookieHost, a.CookieHTTPS, time.Duration(exp)); err != nil {
+			return
+		}
 	}
 
 	return

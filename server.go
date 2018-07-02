@@ -30,13 +30,13 @@ var DefaultOpts = Options{
 
 // New returns a new server with the specified options.
 func New(opts ...Option) *Server {
-	srv := NewWithOpts(nil)
+	o := DefaultOpts
 
 	for _, opt := range opts {
-		opt.apply(&srv.opts)
+		opt.apply(&o)
 	}
 
-	return srv
+	return NewWithOpts(&o)
 }
 
 // NewWithOpts allows passing the Options struct directly
@@ -46,6 +46,8 @@ func NewWithOpts(opts *Options) *Server {
 	if opts == nil {
 		cp := DefaultOpts
 		srv.opts = cp
+	} else {
+		srv.opts = *opts
 	}
 
 	ro := srv.opts.RouterOptions
@@ -140,7 +142,7 @@ func (s *Server) Run(addr string) error {
 	s.servers = append(s.servers, srv)
 	s.serversMux.Unlock()
 
-	if s.opts.KeepAlivePeriod == -1 {
+	if s.opts.KeepAlivePeriod < 1 {
 		return srv.Serve(ln)
 	}
 

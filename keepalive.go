@@ -17,9 +17,11 @@ func (ln *tcpKeepAliveListener) Accept() (c net.Conn, err error) {
 	if tc, err = ln.AcceptTCP(); err != nil {
 		return
 	}
+
 	if err = tc.SetKeepAlive(true); err != nil {
 		return
 	}
+
 	if err = tc.SetKeepAlivePeriod(ln.period); err != nil {
 		return
 	}
