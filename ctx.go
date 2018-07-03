@@ -10,7 +10,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -91,23 +90,8 @@ func (ctx *Context) WriteReader(contentType string, r io.Reader) (int64, error) 
 // File serves a file using http.ServeContent.
 // See http.ServeContent.
 func (ctx *Context) File(fp string) error {
-	f, err := os.Open(fp)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	fi, err := f.Stat()
-	if err != nil {
-		return err
-	}
-
-	if fi.IsDir() {
-		return ErrDir
-	}
-
 	ctx.hijackServeContent = true
-	http.ServeContent(ctx, ctx.Req, f.Name(), fi.ModTime(), f)
+	http.ServeFile(ctx, ctx.Req, fp)
 
 	return nil
 }
@@ -305,7 +289,7 @@ func (ctx *Context) Next() Response {
 // without them we'd end up with plain text errors, we wouldn't want that, would we?
 // WriteHeader implements http.ResponseWriter
 func (ctx *Context) WriteHeader(s int) {
-	if ctx.status = s; ctx.hijackServeContent && ctx.status >= http.StatusMultipleChoices {
+	if ctx.status = s; ctx.hijackServeContent && ctx.status >= http.StatusBadRequest {
 		return
 	}
 
@@ -314,7 +298,7 @@ func (ctx *Context) WriteHeader(s int) {
 
 // Write implements http.ResponseWriter
 func (ctx *Context) Write(p []byte) (int, error) {
-	if ctx.hijackServeContent && ctx.status >= http.StatusMultipleChoices {
+	if ctx.hijackServeContent && ctx.status >= http.StatusBadRequest {
 		ctx.hijackServeContent = false
 		NewJSONErrorResponse(ctx.status, p).WriteToCtx(ctx)
 		return len(p), nil

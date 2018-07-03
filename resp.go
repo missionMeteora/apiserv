@@ -105,7 +105,7 @@ func (r *JSONResponse) WriteToCtx(ctx *Context) error {
 		return nil
 	}
 
-	r.Success = r.Code >= http.StatusOK && r.Code < http.StatusMultipleChoices
+	r.Success = r.Code >= http.StatusOK && r.Code < http.StatusBadRequest
 
 	return ctx.JSON(r.Code, r.Indent, r)
 }
@@ -335,6 +335,6 @@ func (r *JSONPResponse) WriteToCtx(ctx *Context) error {
 		return nil
 	}
 
-	r.Success = r.Code >= http.StatusOK && r.Code < http.StatusMultipleChoices
+	r.Success = r.Code >= http.StatusOK && r.Code < http.StatusBadRequest
 	return ctx.JSONP(http.StatusOK, r.Callback, r)
 }
