@@ -58,9 +58,8 @@ func NewWithOpts(opts *Options) *Server {
 			srv.Logf("PANIC (%T): %v", v, v)
 			if h := srv.PanicHandler; h != nil {
 				ctx := getCtx(w, req, nil, srv)
-				defer putCtx(ctx)
-
 				h(ctx, v)
+				putCtx(ctx)
 				return
 			}
 
@@ -75,8 +74,8 @@ func NewWithOpts(opts *Options) *Server {
 	srv.r.NotFoundHandler = func(w http.ResponseWriter, req *http.Request, p router.Params) {
 		if h := srv.NotFoundHandler; h != nil {
 			ctx := getCtx(w, req, p, srv)
-			defer putCtx(ctx)
 			srv.NotFoundHandler(ctx)
+			putCtx(ctx)
 			return
 		}
 
