@@ -128,7 +128,7 @@ type Auth struct {
 func (a *Auth) CheckAuth(ctx *apiserv.Context) apiserv.Response {
 	var extra apiserv.M
 	tok, err := jwtReq.ParseFromRequest(ctx.Req, a.Extractor, func(tok *jwt.Token) (key interface{}, err error) {
-		extra, key, err = a.CheckToken(ctx, Token{tok})
+		extra, key, err = a.CheckToken(ctx, Token{Token: tok})
 		return
 	}, jwtReq.WithClaims(a.NewClaims()), jwtReq.WithParser(DefaultParser))
 
@@ -150,12 +150,12 @@ func (a *Auth) CheckAuth(ctx *apiserv.Context) apiserv.Response {
 // Can be chained with SignUp if needed.
 func (a *Auth) SignIn(ctx *apiserv.Context) apiserv.Response {
 	tok := jwt.NewWithClaims(a.SigningMethod, a.NewClaims())
-	extra, key, err := a.AuthToken(ctx, Token{tok})
+	extra, key, err := a.AuthToken(ctx, Token{Token: tok})
 	if err != nil {
 		return apiserv.NewJSONErrorResponse(http.StatusUnauthorized, err)
 	}
 
-	signed, err := a.signAndSetHeaders(ctx, Token{tok}, key)
+	signed, err := a.signAndSetHeaders(ctx, Token{Token: tok}, key)
 	if err != nil {
 		// only reason this would return an error is if there's something wrong with json.Marshal
 		return apiserv.NewJSONErrorResponse(http.StatusInternalServerError, err)
@@ -180,7 +180,7 @@ func (a *Auth) signAndSetHeaders(ctx *apiserv.Context, tok Token, key interface{
 
 	exp, ok := tok.Expiry()
 	if ok && exp > 0 {
-		exp = int64(time.Unix(exp, 0).Sub(time.Now()))
+		exp = int64(time.Until(time.Unix(exp, 0)))
 	}
 
 	for _, c := range a.AuthCookies {
