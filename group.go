@@ -132,6 +132,7 @@ func (ghc *groupHandlerChain) Serve(rw http.ResponseWriter, req *http.Request, p
 
 		mwIdx, hIdx int
 	)
+	defer putCtx(ctx)
 
 	ctx.next = func() (r Response) {
 		for hIdx < len(ghc.hc) {
@@ -165,6 +166,4 @@ func (ghc *groupHandlerChain) Serve(rw http.ResponseWriter, req *http.Request, p
 	}
 
 	ctx.Next()
-
-	putCtx(ctx)
 }
