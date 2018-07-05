@@ -22,7 +22,7 @@ func (ctx *Context) EnableGzip(level int) {
 	if _, ok := ctx.ResponseWriter.(*gzRW); ok {
 		return
 	}
-	g := getGzRW(gzip.DefaultCompression)
+	g := getGzRW(level)
 	g.init(ctx)
 }
 
