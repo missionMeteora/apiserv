@@ -8,6 +8,8 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/PathDNA/ptk"
+
 	tkErrors "github.com/missionMeteora/toolkit/errors"
 )
 
@@ -78,6 +80,13 @@ func ReadJSONResponse(rc io.ReadCloser, dataValue interface{}) (r *JSONResponse,
 	}
 
 	return
+}
+
+func JSONRequest(method, url string, reqData, respData interface{}) (err error) {
+	return ptk.Request(method, "", url, reqData, func(r *http.Response) error {
+		_, err := ReadJSONResponse(r.Body, respData)
+		return err
+	})
 }
 
 // JSONResponse is the default standard api response
@@ -179,7 +188,7 @@ type Error struct {
 }
 
 func (e *Error) Error() string {
-	j, _ := jsonMarshal(false, e)
+	j, _ := ptk.MarshalJSON(true, e)
 	return j
 }
 

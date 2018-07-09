@@ -1,12 +1,13 @@
 package apiserv
 
 import (
-	"encoding/json"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/PathDNA/ptk"
 )
 
 var (
@@ -152,30 +153,7 @@ func AllowCORS(methods, headers, origins []string, groups ...Group) Handler {
 	return fn
 }
 
-// M is a QoL shortcut for map[string]interface{}
-type M map[string]interface{}
-
-// ToJSON returns a string json representation of M, mostly for debugging.
-func (m M) ToJSON(indent bool) string {
-	if m == nil {
-		return "{}"
-	}
-	j, _ := jsonMarshal(indent, m)
-	return j
-}
-
-func jsonMarshal(indent bool, v interface{}) (string, error) {
-	var (
-		j   []byte
-		err error
-	)
-	if indent {
-		j, err = json.MarshalIndent(v, "", "\t")
-	} else {
-		j, err = json.Marshal(v)
-	}
-	return string(j), err
-}
+type M = ptk.M
 
 // MultiError handles returning multiple errors.
 type MultiError []error

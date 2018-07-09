@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/PathDNA/ptk"
 	"github.com/missionMeteora/apiserv/router"
 )
 
@@ -357,7 +358,7 @@ func (ctx *Context) SetCookie(name string, value interface{}, domain string, for
 		}
 	} else if s, ok := value.(string); ok {
 		encValue = s
-	} else if encValue, err = jsonMarshal(false, value); err != nil {
+	} else if encValue, err = ptk.MarshalJSON(false, value); err != nil {
 		return
 	}
 
