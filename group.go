@@ -1,7 +1,6 @@
 package apiserv
 
 import (
-	"log"
 	"net/http"
 	"strings"
 
@@ -163,8 +162,9 @@ func (ghc *groupHandlerChain) Serve(rw http.ResponseWriter, req *http.Request, p
 			}
 		}
 		ctx.nextMW = nil
-
-		log.Println(ctx.done, r)
+		if ctx.done {
+			ctx.next = nil
+		}
 		return
 	}
 
