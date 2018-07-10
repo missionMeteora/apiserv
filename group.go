@@ -1,6 +1,7 @@
 package apiserv
 
 import (
+	"log"
 	"net/http"
 	"strings"
 
@@ -157,11 +158,13 @@ func (ghc *groupHandlerChain) Serve(rw http.ResponseWriter, req *http.Request, p
 				if !ctx.done && r != Break {
 					r.WriteToCtx(ctx)
 				}
+
 				break
 			}
 		}
 		ctx.nextMW = nil
 
+		log.Println(ctx.done, r)
 		return
 	}
 
