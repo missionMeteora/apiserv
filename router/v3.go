@@ -140,7 +140,6 @@ func (r *Router) Match(method, path string) (handler Handler, params Params) {
 
 func (r *Router) match(method, path string) (handler Handler, params *paramsWrapper) {
 	m := r.getMap(method, false)
-
 	var (
 		nn   []node
 		rn   node
@@ -155,11 +154,15 @@ func (r *Router) match(method, path string) (handler Handler, params *paramsWrap
 
 		return false
 	}) {
-		return
+		if nn = m.get("/"); nn != nil {
+			nsep = 1
+		} else {
+			return
+		}
 	}
 
-	for i := range nn {
-		if n := nn[i]; len(n.parts) == nsep || n.hasStar() {
+	for _, n := range nn {
+		if len(n.parts) == nsep || n.hasStar() {
 			rn = n
 			handler = n.h
 			break
