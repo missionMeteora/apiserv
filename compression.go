@@ -75,7 +75,7 @@ func Gzip(level int) Handler {
 }
 
 var (
-	gzpools [gzip.BestCompression]sync.Pool
+	gzpools [gzip.BestCompression + 1]sync.Pool
 	gzonce  sync.Once
 )
 
