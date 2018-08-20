@@ -124,21 +124,16 @@ func AllowCORS(methods, headers, origins []string, groups ...Group) Handler {
 			return
 		}
 
-		if ctx.Req.Method != "OPTIONS" {
-			// the rest of this function is only needed
-			return
-		}
-
-		if len(ms) == 0 {
-			wh.Set("Access-Control-Allow-Methods", rh.Get("Access-Control-Request-Method"))
-		} else {
+		if len(ms) > 0 {
 			wh.Set("Access-Control-Allow-Methods", ms)
+		} else if rm := rh.Get("Access-Control-Request-Method"); rm != "" {
+			wh.Set("Access-Control-Allow-Methods", rm)
 		}
 
-		if len(hs) == 0 {
-			wh.Set("Access-Control-Allow-Headers", rh.Get("Access-Control-Request-Headers"))
-		} else {
+		if len(hs) > 0 {
 			wh.Set("Access-Control-Allow-Headers", hs)
+		} else if rh := rh.Get("Access-Control-Request-Headers"); rh != "" {
+			wh.Set("Access-Control-Allow-Headers", rh)
 		}
 
 		wh.Set("Access-Control-Max-Age", "86400") // 24 hours
