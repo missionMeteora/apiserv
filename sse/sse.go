@@ -14,19 +14,19 @@ var (
 
 type dataChan chan []byte
 
-type MultiStream struct {
+type multiStream struct {
 	clients map[dataChan]struct{}
 	mux     sync.Mutex
 	data    chan []byte
 }
 
-func (ms *MultiStream) add(ch dataChan) {
+func (ms *multiStream) add(ch dataChan) {
 	ms.mux.Lock()
 	ms.clients[ch] = struct{}{}
 	ms.mux.Unlock()
 }
 
-func (ms *MultiStream) remove(ch dataChan) (isEmpty bool) {
+func (ms *multiStream) remove(ch dataChan) (isEmpty bool) {
 	ms.mux.Lock()
 	delete(ms.clients, ch)
 	isEmpty = len(ms.clients) == 0
@@ -36,11 +36,11 @@ func (ms *MultiStream) remove(ch dataChan) (isEmpty bool) {
 	return
 }
 
-func (ms *MultiStream) close() {
+func (ms *multiStream) close() {
 	close(ms.data)
 }
 
-func (ms *MultiStream) process() {
+func (ms *multiStream) process() {
 	for b := range ms.data {
 		if b == nil {
 			return
@@ -56,19 +56,19 @@ func (ms *MultiStream) process() {
 
 func NewRouter() *Router {
 	return &Router{
-		mss: make(map[string]*MultiStream, 8),
+		mss: make(map[string]*multiStream, 8),
 	}
 }
 
 type Router struct {
-	mss map[string]*MultiStream
+	mss map[string]*multiStream
 	mux sync.RWMutex
 }
 
-func (r *Router) getOrMake(id string) (ms *MultiStream) {
+func (r *Router) getOrMake(id string) (ms *multiStream) {
 	r.mux.Lock()
 	if ms = r.mss[id]; ms == nil {
-		ms = &MultiStream{
+		ms = &multiStream{
 			clients: make(map[dataChan]struct{}, 8),
 			data:    make(chan []byte),
 		}
@@ -80,7 +80,7 @@ func (r *Router) getOrMake(id string) (ms *MultiStream) {
 	return
 }
 
-func (r *Router) removeIfEmpty(ms *MultiStream, ch dataChan, id string) {
+func (r *Router) removeIfEmpty(ms *multiStream, ch dataChan, id string) {
 	if !ms.remove(ch) {
 		return
 	}

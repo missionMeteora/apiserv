@@ -33,7 +33,7 @@ func TestSSE(t *testing.T) {
 
 	srv.GET("/send/:id", func(ctx *apiserv.Context) apiserv.Response {
 		log.Println("new connection", ctx.Req.RemoteAddr)
-		sr.SendAll(ctx.Param("id"), time.Now().String(), "", ctx.Query("m"))
+		sr.Send(ctx.Param("id"), time.Now().String(), "", ctx.Query("m"))
 		return nil
 	})
 
