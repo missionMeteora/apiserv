@@ -3,59 +3,87 @@ package apiutils
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
 	"net/http"
-	"sync"
+	"strings"
 
 	"github.com/missionMeteora/apiserv"
 )
 
 var (
-	eol       = []byte("\n\n")
-	mlSep     = []byte("\ndata: ")
+	ErrBufferFull  = errors.New("buffer full")
+	ErrNotAFlusher = errors.New("ctx not a flusher")
+
+	nl        = []byte("\n")
 	idBytes   = []byte("id: ")
 	evtBytes  = []byte("event: ")
 	dataBytes = []byte("data: ")
+	pingBytes = []byte("data: ping\n\n")
 )
 
-type SSEData chan []byte
-
-type SSEHandlerFunc func(ctx *apiserv.Context) (stream SSEData, errResp apiserv.Response)
-
-func NewSSERouter(clientChannelSize int) *SSERouter {
-	if clientChannelSize < 1 {
-		clientChannelSize = 1
-	}
-
-	s := &SSERouter{
-		clients: make(map[SSEData]struct{}, 8),
-		chSize:  clientChannelSize,
-
-		add:  make(chan SSEData, 1),
-		del:  make(chan SSEData, 1),
-		evts: make(chan *bytes.Buffer),
-		p: sync.Pool{
-			New: func() interface{} { return bytes.NewBuffer(make([]byte, 0, 1024)) },
-		},
-	}
-
-	go s.process()
-
-	return s
+type writeFlusher interface {
+	io.Writer
+	http.Flusher
 }
 
-type SSERouter struct {
-	clients map[SSEData]struct{}
-	chSize  int
-
-	add  chan SSEData
-	del  chan SSEData
-	evts chan *bytes.Buffer
-
-	p sync.Pool
+type SSEStream struct {
+	wf   writeFlusher
+	done chan struct{}
+	buf  *bytes.Buffer
 }
 
-func (s *SSERouter) SendAll(id, evt string, msg interface{}) error {
-	buf := s.p.Get().(*bytes.Buffer)
+func (ss *SSEStream) Ping() (err error) {
+	_, err = ss.wf.Write(pingBytes)
+	ss.wf.Flush()
+	return
+}
+
+func (ss *SSEStream) Retry(ms int) (err error) {
+	_, err = fmt.Fprintf(ss.wf, "retry: %d\n\n", ms)
+	ss.wf.Flush()
+	return
+}
+
+func (ss *SSEStream) SendData(data interface{}) error {
+	buf := ss.buf
+
+	switch data := data.(type) {
+	case []byte:
+		for _, p := range bytes.Split(data, nl) {
+			buf.Write(dataBytes)
+			buf.Write(p)
+			buf.Write(nl)
+		}
+	case string:
+		for _, p := range strings.Split(data, "\n") {
+			buf.Write(dataBytes)
+			buf.WriteString(p)
+			buf.Write(nl)
+		}
+
+	default:
+		v, err := json.Marshal(data)
+		if err != nil {
+			return err
+		}
+
+		buf.Write(dataBytes)
+		buf.Write(v)
+		buf.Write(nl)
+	}
+
+	buf.Write(nl)
+
+	_, err := buf.WriteTo(ss.wf)
+	ss.wf.Flush()
+
+	return err
+}
+
+func (ss *SSEStream) SendAll(id, evt string, msg interface{}) error {
+	buf := ss.buf
 
 	if id != "" {
 		buf.Write(idBytes)
@@ -69,108 +97,26 @@ func (s *SSERouter) SendAll(id, evt string, msg interface{}) error {
 		buf.WriteByte('\n')
 	}
 
-	buf.Write(dataBytes)
-
-	switch msg := msg.(type) {
-	case []byte:
-		if bytes.ContainsRune(msg, '\n') {
-			msg = bytes.Join(bytes.Split(msg, eol[:1]), mlSep)
-		}
-		buf.Write(msg)
-
-	default:
-		v, err := json.Marshal(msg)
-		if err != nil {
-			return err
-		}
-		buf.Write(v)
-	}
-
-	buf.Write(eol)
-	s.evts <- buf
-
-	return nil
+	return ss.SendData(msg)
 }
 
-func (s *SSERouter) Handler(ctx *apiserv.Context) (_ apiserv.Response) {
-	f, ok := ctx.ResponseWriter.(http.Flusher)
+func ConvertToSSE(ctx *apiserv.Context) (lastEventID string, ss *SSEStream, err error) {
+	wf, ok := ctx.ResponseWriter.(writeFlusher)
 	if !ok {
-		return apiserv.NewJSONErrorResponse(http.StatusInternalServerError, "not a flusher")
+		err = ErrNotAFlusher
+		return
 	}
 
 	h := ctx.Header()
 	h.Set("Content-Type", "text/event-stream")
 	h.Set("Cache-Control", "no-cache")
-	f.Flush()
+	wf.Flush()
 
-	ch := make(SSEData, s.chSize)
-	doneCh := ctx.Req.Context().Done()
-
-	s.add <- ch
-	defer func() { s.del <- ch }()
-
-	for {
-		select {
-		case data := <-ch:
-			if _, err := ctx.Write(data); err != nil {
-				return
-			}
-			f.Flush()
-		case <-doneCh:
-			return
-		}
+	ss = &SSEStream{
+		wf:  wf,
+		buf: bytes.NewBuffer(nil),
 	}
+	lastEventID = ctx.ReqHeader().Get("Last-Event-ID")
+
+	return
 }
-
-func (s *SSERouter) process() {
-	for {
-		select {
-		case ch := <-s.add:
-			s.clients[ch] = struct{}{}
-
-		case ch := <-s.del:
-			delete(s.clients, ch)
-
-		case evt := <-s.evts:
-			b := evt.Bytes()
-
-			for ch := range s.clients {
-				if !trySend(ch, b) {
-					delete(s.clients, ch)
-				}
-			}
-
-			evt.Reset()
-			s.p.Put(evt)
-		}
-	}
-}
-
-func trySend(ch SSEData, evt []byte) bool {
-	select {
-	case ch <- evt:
-		return true
-	default:
-		return false
-	}
-}
-
-// func SSEHandler(fn SSEHandlerFunc) apiserv.Handler {
-// 	return func(ctx *apiserv.Context) apiserv.Response {
-// 		ch, resp := fn(ctx)
-// 		if resp != nil {
-// 			return resp
-// 		}
-
-// 		flusher, ok := ctx.ResponseWriter.(http.Flusher)
-// 		if !ok {
-// 			return apiserv.NewJSONErrorResponse(500, "not a flusher")
-// 		}
-
-// 		for {
-
-// 		}
-// 	}
-// }
-
-func dummy(*apiserv.Context) apiserv.Response { return nil }
