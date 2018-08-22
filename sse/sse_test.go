@@ -1,4 +1,4 @@
-package apiutils_test
+package sse_test
 
 import (
 	"log"
@@ -6,9 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/missionMeteora/apiserv/apiutils"
-
 	"github.com/missionMeteora/apiserv"
+	"github.com/missionMeteora/apiserv/sse"
 )
 
 func TestSSE(t *testing.T) {
@@ -25,18 +24,16 @@ func TestSSE(t *testing.T) {
 	defer ts.Close()
 
 	done := make(chan struct{}, 1)
+	sr := sse.NewRouter()
 
-	srv.GET("/sse", func(ctx *apiserv.Context) apiserv.Response {
-		_, ss, err := apiutils.ConvertToSSE(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for ts := range time.Tick(time.Second) {
-			if err := ss.SendData(ts.String()); err != nil {
-				t.Log(err)
-				break
-			}
-		}
+	srv.GET("/sse/:id", func(ctx *apiserv.Context) apiserv.Response {
+		log.Println("new connection", ctx.Req.RemoteAddr)
+		return sr.Handle(ctx.Param("id"), 10, ctx)
+	})
+
+	srv.GET("/send/:id", func(ctx *apiserv.Context) apiserv.Response {
+		log.Println("new connection", ctx.Req.RemoteAddr)
+		sr.SendAll(ctx.Param("id"), time.Now().String(), "", ctx.Query("m"))
 		return nil
 	})
 
@@ -63,13 +60,14 @@ const page = `
 </head>
 <body>
 	<script type="text/javascript">
-		const es = new EventSource('/sse');
+		const es = new EventSource('/sse/user1');
 		// Create a callback for when a new message is received.
 		es.onmessage = function(e) {
 			console.log(e);
 			document.body.innerHTML += e.data + '<br>';
 		};
 	</script>
+	<a href="/close">close</a>
 </body>
 </html>
 `

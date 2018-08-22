@@ -4,7 +4,7 @@ sudo: false
 go:
   - "1.9"
   - "1.10"
-  - master
+  - tip
 
 script:
   - go test -v -short ./...
