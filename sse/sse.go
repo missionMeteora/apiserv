@@ -50,9 +50,7 @@ func (ms *multiStream) process() {
 
 		ms.mux.Lock()
 		for ch := range ms.clients {
-			if !trySend(ch, b) {
-				delete(ms.clients, ch)
-			}
+			trySend(ch, b)
 		}
 		ms.mux.Unlock()
 	}
