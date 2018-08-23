@@ -1,7 +1,7 @@
 package sse
 
 import (
-	"fmt"
+	"errors"
 	"net/http"
 	"sync"
 
@@ -10,6 +10,8 @@ import (
 
 var (
 	RespNotAFlusher = apiserv.NewJSONErrorResponse(http.StatusInternalServerError, ErrNotAFlusher)
+
+	ErrNoListener = errors.New("no registered listener")
 )
 
 type dataChan chan []byte
@@ -30,8 +32,8 @@ func (ms *multiStream) remove(ch dataChan) (isEmpty bool) {
 	ms.mux.Lock()
 	delete(ms.clients, ch)
 	isEmpty = len(ms.clients) == 0
-	ms.mux.Unlock()
 	close(ch)
+	ms.mux.Unlock()
 
 	return
 }
@@ -46,11 +48,13 @@ func (ms *multiStream) process() {
 			return
 		}
 
+		ms.mux.Lock()
 		for ch := range ms.clients {
 			if !trySend(ch, b) {
 				delete(ms.clients, ch)
 			}
 		}
+		ms.mux.Unlock()
 	}
 }
 
@@ -130,11 +134,12 @@ func (r *Router) Handle(id string, bufSize int, ctx *apiserv.Context) (_ apiserv
 
 func (r *Router) Send(id, eventID, event string, data interface{}) (err error) {
 	r.mux.RLock()
+	defer r.mux.RUnlock()
+
 	ms := r.mss[id]
-	r.mux.RUnlock()
 
 	if ms == nil {
-		return fmt.Errorf("no registered handler for %s", id)
+		return ErrNoListener
 	}
 
 	var b []byte
