@@ -44,7 +44,7 @@ func NewStream(ctx *apiserv.Context, bufSize int) (lastEventID string, ss *Strea
 		wch:  make(chan []byte, bufSize),
 		done: ctx.Req.Context().Done(),
 	}
-	lastEventID = ctx.ReqHeader().Get("Last-Event-ID")
+	lastEventID = LastEventID(ctx)
 
 	go processStream(ss, wf)
 

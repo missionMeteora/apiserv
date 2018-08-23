@@ -154,3 +154,11 @@ func trySend(ch dataChan, evt []byte) bool {
 		return false
 	}
 }
+
+func LastEventID(ctx *apiserv.Context) string {
+	if id := ctx.ReqHeader().Get("Last-Event-ID"); id != "" {
+		return id
+	}
+
+	return ctx.Query("lastEventID")
+}
