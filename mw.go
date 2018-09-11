@@ -48,7 +48,8 @@ func LogRequests(logJSONRequests bool) Handler {
 		ctx.NextMiddleware()
 		ctx.Next()
 
-		ctx.s.Logf("[reqID:%05d] [%s] [%d] %s %s [%s]%s", id, ctx.ClientIP(), ctx.Status(), req.Method, url.Path, time.Since(start), extra)
+		ctx.s.Logf("[reqID:%05d] [%s] [%d] [%s] %s %s [%s]%s",
+			id, ctx.ClientIP(), ctx.Status(), req.UserAgent(), req.Method, url.Path, time.Since(start), extra)
 		return nil
 	}
 }
