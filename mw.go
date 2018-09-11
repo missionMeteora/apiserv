@@ -48,8 +48,20 @@ func LogRequests(logJSONRequests bool) Handler {
 		ctx.NextMiddleware()
 		ctx.Next()
 
-		ctx.s.Logf("[reqID:%05d] [%s] [%d] [%s] %s %s [%s]%s",
-			id, ctx.ClientIP(), ctx.Status(), req.UserAgent(), req.Method, url.Path, time.Since(start), extra)
+		ct := req.Header.Get("Content-Type")
+
+		switch ct {
+		case "application/json":
+			ct = "[JSON] "
+		case "text/event-stream":
+			ct = "[SSE] "
+		case "":
+		default:
+			ct = "[" + ct + "] "
+		}
+
+		ctx.s.Logf("[reqID:%05d] [%s] [%s] %s[%d] %s %s [%s]%s",
+			id, ctx.ClientIP(), req.UserAgent(), ct, ctx.Status(), req.Method, url.Path, time.Since(start), extra)
 		return nil
 	}
 }
