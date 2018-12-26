@@ -43,10 +43,9 @@ func TryCompressed(ctx *Context, fname string) error {
 			ctx.Header().Set(encodingHeader, gzEnc)
 			return ctx.File(fname)
 		}
-
-		ctx.EnableGzip(6)
 	}
 
+	ctx.EnableGzip(6)
 	return ctx.File(fname)
 }
 
