@@ -121,15 +121,21 @@ func (r *JSONResponse) WriteToCtx(ctx *Context) error {
 	return ctx.JSON(r.Code, r.Indent, r)
 }
 
+func NewXMLResponse(data interface{}) *JSONResponse {
+	return &XMLResponse{
+		Code: http.StatusOK,
+		Data: data,
+	}
+}
+
 // XMLResponse is the default standard api response using xml from data
 type XMLResponse struct {
-	Errors []*Error    `json:"errors,omitempty" xml:"errors>error,omitempty"`
+	Errors []*Error    `json:"errors,omitempty"`
 	Data   interface{} `json:"data,omitempty"`
 	Code   int         `json:"code"` // if code is not set, it defaults to 200 if error is nil otherwise 400.
 
 	Success bool `json:"success"`   // automatically set to true if r.Code >= 200 && r.Code < 300.
-	Indent  bool `json:"-" xml:"-"` // if set to true, the json encoder will output indented json.
-	Raw     bool `json:"-" xml:"-"`
+	Indent  bool `json:"-"` // if set to true, the json encoder will output indented json.
 }
 
 type xmlErrorResponse struct {
