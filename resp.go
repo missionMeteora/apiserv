@@ -2,6 +2,7 @@ package apiserv
 
 import (
 	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
@@ -33,6 +34,7 @@ var (
 // Common mime-types
 const (
 	MimeJSON       = "application/json; charset=utf-8"
+	MimeXML        = "application/xml; charset=utf-8"
 	MimeJavascript = "application/javascript; charset=utf-8"
 	MimeHTML       = "text/html; charset=utf-8"
 	MimePlain      = "text/plain; charset=utf-8"
@@ -119,6 +121,56 @@ func (r *JSONResponse) WriteToCtx(ctx *Context) error {
 	return ctx.JSON(r.Code, r.Indent, r)
 }
 
+// XMLResponse is the default standard api response using xml from data
+type XMLResponse struct {
+	Errors []*Error    `json:"errors,omitempty" xml:"errors>error,omitempty"`
+	Data   interface{} `json:"data,omitempty"`
+	Code   int         `json:"code"` // if code is not set, it defaults to 200 if error is nil otherwise 400.
+
+	Success bool `json:"success"`   // automatically set to true if r.Code >= 200 && r.Code < 300.
+	Indent  bool `json:"-" xml:"-"` // if set to true, the json encoder will output indented json.
+	Raw     bool `json:"-" xml:"-"`
+}
+
+type xmlErrorResponse struct {
+	XMLName xml.Name `xml:"errors"`
+	Errors  []*Error `json:"errors,omitempty" xml:"errors,omitempty"`
+}
+
+// WriteToCtx writes the response to a ResponseWriter
+func (r *XMLResponse) WriteToCtx(ctx *Context) error {
+	switch r.Code {
+	case 0:
+		if len(r.Errors) > 0 {
+			r.Code = http.StatusBadRequest
+		} else {
+			r.Code = http.StatusOK
+		}
+
+	case http.StatusNoContent: // special case
+		ctx.WriteHeader(http.StatusNoContent)
+		return nil
+	}
+
+	r.Success = r.Code >= http.StatusOK && r.Code < http.StatusBadRequest
+
+	ctx.SetContentType(MimeXML)
+	ctx.WriteHeader(r.Code)
+	ctx.Write([]byte(xml.Header))
+
+	enc := xml.NewEncoder(ctx)
+	if r.Indent {
+		enc.Indent("", "\t")
+	}
+
+	if len(r.Errors) > 0 {
+		er := &xmlErrorResponse{Errors: r.Errors}
+		return enc.Encode(er)
+	}
+
+	return enc.Encode(r.Data)
+}
+
 // NewJSONErrorResponse returns a new error response.
 // each err can be:
 // 1. string or []byte
@@ -169,12 +221,12 @@ func (r *JSONResponse) appendErr(err interface{}) {
 		r.Errors = append(r.Errors, &Error{Message: string(v)})
 	case *JSONResponse:
 		r.Errors = append(r.Errors, v.Errors...)
-	case error:
-		r.Errors = append(r.Errors, &Error{Message: v.Error()})
 	case MultiError:
 		for _, err := range v {
 			r.appendErr(err)
 		}
+	case error:
+		r.Errors = append(r.Errors, &Error{Message: v.Error()})
 	default:
 		log.Panicf("unsupported error type (%T): %v", v, v)
 	}
