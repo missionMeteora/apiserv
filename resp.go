@@ -121,7 +121,7 @@ func (r *JSONResponse) WriteToCtx(ctx *Context) error {
 	return ctx.JSON(r.Code, r.Indent, r)
 }
 
-func NewXMLResponse(data interface{}) *JSONResponse {
+func NewXMLResponse(data interface{}) *XMLResponse {
 	return &XMLResponse{
 		Code: http.StatusOK,
 		Data: data,

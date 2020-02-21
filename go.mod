@@ -1,6 +1,6 @@
 module github.com/missionMeteora/apiserv
 
-go 1.14
+go 1.13
 
 require (
 	github.com/PathDNA/ptk v0.0.0-20190218195907-c6fdbb4829ec
