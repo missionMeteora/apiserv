@@ -1,12 +1,17 @@
 package apiserv
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
+	"sync"
 
+	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
+	"golang.org/x/net/idna"
 )
 
 // RunAutoCert enables automatic support for LetsEncrypt, using the optional passed domains list.
@@ -51,22 +56,62 @@ func (s *Server) RunAutoCert(certCacheDir string, domains ...string) error {
 	return srv.ListenAndServeTLS("", "")
 }
 
+func NewAutoCertHosts(hosts ...string) *AutoCertHosts {
+	var a AutoCertHosts
+	return a.set(hosts...)
+}
+
+type AutoCertHosts struct {
+	mux sync.RWMutex
+	m   map[string]struct{}
+}
+
+func (a *AutoCertHosts) Set(hosts ...string) {
+	a.mux.Lock()
+	a.set(hosts...)
+	a.mux.Unlock()
+}
+
+func (a *AutoCertHosts) set(hosts ...string) *AutoCertHosts {
+	var e struct{}
+	a.m = make(map[string]struct{}, len(hosts)+1)
+	for _, h := range hosts {
+		// copied from autocert.HostWhiteList
+		if h, err := idna.Lookup.ToASCII(h); err == nil {
+			a.m[h] = e
+		}
+	}
+	return a
+}
+
+func (a *AutoCertHosts) Contains(host string) bool {
+	a.mux.RLock()
+	_, ok := a.m[strings.ToLower(host)]
+	a.mux.RUnlock()
+	return ok
+}
+
+func (a *AutoCertHosts) IsAllowed(_ context.Context, host string) error {
+	if a.Contains(host) {
+		return nil
+	}
+	return fmt.Errorf("apiserv/autocert: host %q not configured in AutoCertHosts", host)
+}
+
 // RunTLSAndAuto allows using custom certificates and autocert together.
 // It will always listen on both :80 and :443
-func (s *Server) RunTLSAndAuto(certCacheDir string, certPairs []CertPair, domains []string) error {
-	var (
-		m = &autocert.Manager{
-			Prompt: autocert.AcceptTOS,
-		}
-		domMap map[string]bool
-	)
+func (s *Server) RunTLSAndAuto(certCacheDir string, certPairs []CertPair, hosts *AutoCertHosts) error {
+	if hosts == nil {
+		return fmt.Errorf("apiserve/autocert: hosts can't be nil")
+	}
 
-	if len(domains) > 0 {
-		m.HostPolicy = autocert.HostWhitelist(domains...)
-		domMap = make(map[string]bool, len(domains))
-		for _, dom := range domains {
-			domMap[dom] = true
-		}
+	m := &autocert.Manager{
+		Prompt:     autocert.AcceptTOS,
+		HostPolicy: hosts.IsAllowed,
+	}
+
+	if hosts != nil {
+		m.HostPolicy = hosts.IsAllowed
 	}
 
 	if certCacheDir == "" {
@@ -74,7 +119,7 @@ func (s *Server) RunTLSAndAuto(certCacheDir string, certPairs []CertPair, domain
 	}
 
 	if err := os.MkdirAll(certCacheDir, 0700); err != nil {
-		return fmt.Errorf("couldn't create cert cache dir: %v", err)
+		return fmt.Errorf("couldn't create cert cache dir (%s): %v", certCacheDir, err)
 	}
 
 	m.Cache = autocert.DirCache(certCacheDir)
@@ -82,18 +127,13 @@ func (s *Server) RunTLSAndAuto(certCacheDir string, certPairs []CertPair, domain
 	srv := s.newHTTPServer(":https")
 
 	cfg := &tls.Config{
-		MinVersion: tls.VersionTLS12,
-
-		CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
+		MinVersion:               tls.VersionTLS12,
 		PreferServerCipherSuites: true,
-		CipherSuites: []uint16{
-			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
-			tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_RSA_WITH_AES_256_CBC_SHA,
-		},
 
-		NextProtos: []string{"h2", "http/1.1"}, // Enable HTTP/2
+		NextProtos: []string{
+			"h2", "http/1.1", // enable HTTP/2
+			acme.ALPNProto, // enable tls-alpn ACME challenges
+		},
 
 		GetCertificate: m.GetCertificate,
 	}
@@ -109,11 +149,12 @@ func (s *Server) RunTLSAndAuto(certCacheDir string, certPairs []CertPair, domain
 	cfg.BuildNameToCertificate()
 
 	cfg.GetCertificate = func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-		if domMap[hello.ServerName] {
-			return m.GetCertificate(hello)
+
+		if crt, err := m.GetCertificate(hello); err == nil {
+			return crt, err
 		}
 
-		// fallback to default impl
+		// fallback to default impl tls impl
 		return nil, nil
 	}
 
