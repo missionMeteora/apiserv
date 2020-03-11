@@ -57,8 +57,9 @@ func (s *Server) RunAutoCert(certCacheDir string, domains ...string) error {
 }
 
 func NewAutoCertHosts(hosts ...string) *AutoCertHosts {
-	var a AutoCertHosts
-	return a.set(hosts...)
+	return &AutoCertHosts{
+		m: makeHosts(hosts...),
+	}
 }
 
 type AutoCertHosts struct {
@@ -67,21 +68,22 @@ type AutoCertHosts struct {
 }
 
 func (a *AutoCertHosts) Set(hosts ...string) {
+	m := makeHosts(hosts...)
 	a.mux.Lock()
-	a.set(hosts...)
+	a.m = m
 	a.mux.Unlock()
 }
 
-func (a *AutoCertHosts) set(hosts ...string) *AutoCertHosts {
+func makeHosts(hosts ...string) (m map[string]struct{}) {
 	var e struct{}
-	a.m = make(map[string]struct{}, len(hosts)+1)
+	m = make(map[string]struct{}, len(hosts)+1)
 	for _, h := range hosts {
 		// copied from autocert.HostWhiteList
 		if h, err := idna.Lookup.ToASCII(h); err == nil {
-			a.m[h] = e
+			m[h] = e
 		}
 	}
-	return a
+	return
 }
 
 func (a *AutoCertHosts) Contains(host string) bool {
@@ -149,7 +151,6 @@ func (s *Server) RunTLSAndAuto(certCacheDir string, certPairs []CertPair, hosts 
 	cfg.BuildNameToCertificate()
 
 	cfg.GetCertificate = func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-
 		if crt, err := m.GetCertificate(hello); err == nil {
 			return crt, err
 		}
