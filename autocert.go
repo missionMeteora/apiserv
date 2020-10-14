@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -151,9 +150,6 @@ func (s *Server) RunTLSAndAuto(certCacheDir string, certPairs []CertPair, hosts 
 
 	cfg.GetCertificate = func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 		crt, err := m.GetCertificate(hello)
-		if err != nil {
-			log.Printf("m.GetCert (%s): %v", hello.ServerName, err)
-		}
 		if err == nil {
 			return crt, err
 		}
