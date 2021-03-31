@@ -3,6 +3,7 @@ package router
 import (
 	"errors"
 	"net/http"
+	"strings"
 	"sync"
 )
 
@@ -155,7 +156,7 @@ func (r *Router) match(method, path string) (handler Handler, params *paramsWrap
 		return false
 	}) {
 		if nn = m.get("/"); nn != nil {
-			nsep = 1
+			nsep = strings.Count(path, "/")
 		} else {
 			return
 		}
