@@ -42,9 +42,9 @@ type Group interface {
 }
 
 type group struct {
-	mw   []Handler
-	path string
 	s    *Server
+	path string
+	mw   []Handler
 }
 
 // Use adds more middleware to the current group.
@@ -122,8 +122,8 @@ func joinPath(p1, p2 string) string {
 }
 
 type groupHandlerChain struct {
-	hc []Handler
 	g  *group
+	hc []Handler
 }
 
 func (ghc *groupHandlerChain) Serve(rw http.ResponseWriter, req *http.Request, p router.Params) {

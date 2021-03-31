@@ -9,13 +9,12 @@ import (
 
 // Options allows finer control over the apiserv
 type Options struct {
-	ReadTimeout     time.Duration // see http.Server.ReadTimeout
-	WriteTimeout    time.Duration // see http.Server.WriteTimeout
-	KeepAlivePeriod time.Duration // sets the underlying socket's keepalive period, set to -1 to disable
-	MaxHeaderBytes  int           // see http.Server.MaxHeaderBytes
 	Logger          *log.Logger
-
-	RouterOptions *router.Options // Additional Options passed to the internal router.Router instance
+	RouterOptions   *router.Options
+	ReadTimeout     time.Duration
+	WriteTimeout    time.Duration
+	KeepAlivePeriod time.Duration
+	MaxHeaderBytes  int
 }
 
 // Option is a func to set internal server Options.

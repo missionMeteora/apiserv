@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/PathDNA/ptk"
 	"github.com/missionMeteora/apiserv/router"
 )
 
@@ -35,17 +34,13 @@ var (
 // Context is the default context passed to handlers
 // it is not thread safe and should never be used outside the handler
 type Context struct {
-	Params router.Params
 	http.ResponseWriter
-	Req *http.Request
-
-	data M
-
-	s *Server
-
-	next   func() Response
-	nextMW func() Response
-
+	nextMW             func() Response
+	Req                *http.Request
+	data               M
+	s                  *Server
+	next               func() Response
+	Params             router.Params
 	status             int
 	hijackServeContent bool
 	done               bool
@@ -358,8 +353,12 @@ func (ctx *Context) SetCookie(name string, value interface{}, domain string, for
 		}
 	} else if s, ok := value.(string); ok {
 		encValue = s
-	} else if encValue, err = ptk.MarshalJSON(false, value); err != nil {
-		return
+	} else {
+		var j []byte
+		if j, err = json.Marshal(value); err != nil {
+			return
+		}
+		encValue = string(j)
 	}
 
 	cookie := &http.Cookie{

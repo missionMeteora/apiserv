@@ -134,14 +134,12 @@ func TestServer(t *testing.T) {
 					}
 				}
 			}
-
 		})
 	}
 
 	t.Run("Static", func(t *testing.T) {
 		readme, _ := ioutil.ReadFile("./router/README.md")
 		res, err := http.Get(ts.URL + "/s/router/README.md")
-
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -223,7 +221,6 @@ func TestServer(t *testing.T) {
 
 	t.Run("ReadResp", func(t *testing.T) {
 		res, err := http.Get(ts.URL + "/ping")
-
 		if err != nil {
 			t.Fatal(err)
 		}

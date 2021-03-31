@@ -63,8 +63,8 @@ func NewAutoCertHosts(hosts ...string) *AutoCertHosts {
 }
 
 type AutoCertHosts struct {
-	mux sync.RWMutex
 	m   map[string]struct{}
+	mux sync.RWMutex
 }
 
 func (a *AutoCertHosts) Set(hosts ...string) {
@@ -112,9 +112,7 @@ func (s *Server) RunTLSAndAuto(certCacheDir string, certPairs []CertPair, hosts 
 		HostPolicy: hosts.IsAllowed,
 	}
 
-	if hosts != nil {
-		m.HostPolicy = hosts.IsAllowed
-	}
+	m.HostPolicy = hosts.IsAllowed
 
 	if certCacheDir == "" {
 		certCacheDir = "./autocert"

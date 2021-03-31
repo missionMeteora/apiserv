@@ -24,8 +24,8 @@ var (
 )
 
 type node struct {
-	parts []nodePart
 	h     Handler
+	parts []nodePart
 }
 
 func (n node) hasStar() bool {

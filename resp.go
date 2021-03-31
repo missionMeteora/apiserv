@@ -9,8 +9,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/PathDNA/ptk"
-
+	"github.com/OneOfOne/otk"
 	tkErrors "github.com/missionMeteora/toolkit/errors"
 )
 
@@ -85,7 +84,7 @@ func ReadJSONResponse(rc io.ReadCloser, dataValue interface{}) (r *JSONResponse,
 }
 
 func JSONRequest(method, url string, reqData, respData interface{}) (err error) {
-	return ptk.Request(method, "", url, reqData, func(r *http.Response) error {
+	return otk.Request(method, "", url, reqData, func(r *http.Response) error {
 		_, err := ReadJSONResponse(r.Body, respData)
 		return err
 	})
@@ -93,12 +92,11 @@ func JSONRequest(method, url string, reqData, respData interface{}) (err error) 
 
 // JSONResponse is the default standard api response
 type JSONResponse struct {
-	Errors []*Error    `json:"errors,omitempty"`
-	Data   interface{} `json:"data,omitempty"`
-	Code   int         `json:"code"` // if code is not set, it defaults to 200 if error is nil otherwise 400.
-
-	Success bool `json:"success"` // automatically set to true if r.Code >= 200 && r.Code < 300.
-	Indent  bool `json:"-"`       // if set to true, the json encoder will output indented json.
+	Data    interface{} `json:"data,omitempty"`
+	Errors  []*Error    `json:"errors,omitempty"`
+	Code    int         `json:"code"`
+	Success bool        `json:"success"`
+	Indent  bool        `json:"-"`
 }
 
 // WriteToCtx writes the response to a ResponseWriter
@@ -130,12 +128,11 @@ func NewXMLResponse(data interface{}) *XMLResponse {
 
 // XMLResponse is the default standard api response using xml from data
 type XMLResponse struct {
-	Errors []*Error    `json:"errors,omitempty"`
-	Data   interface{} `json:"data,omitempty"`
-	Code   int         `json:"code"` // if code is not set, it defaults to 200 if error is nil otherwise 400.
-
-	Success bool `json:"success"`   // automatically set to true if r.Code >= 200 && r.Code < 300.
-	Indent  bool `json:"-"` // if set to true, the json encoder will output indented json.
+	Data    interface{} `json:"data,omitempty"`
+	Errors  []*Error    `json:"errors,omitempty"`
+	Code    int         `json:"code"`
+	Success bool        `json:"success"`
+	Indent  bool        `json:"-"`
 }
 
 type xmlErrorResponse struct {
@@ -246,8 +243,8 @@ type Error struct {
 }
 
 func (e *Error) Error() string {
-	j, _ := ptk.MarshalJSON(true, e)
-	return j
+	j, _ := json.MarshalIndent(e, "", "\t")
+	return string(j)
 }
 
 // Redirect returns a redirect Response.
@@ -312,8 +309,8 @@ func SimpleResponse(code int, contentType string, val interface{}) Response {
 }
 
 type simpleResp struct {
-	ct   string
 	v    interface{}
+	ct   string
 	code int
 }
 
@@ -368,15 +365,13 @@ func NewJSONPErrorResponse(callbackKey string, code int, errs ...interface{}) *J
 		callbackKey = "console.error"
 	}
 
-	var (
-		r = &JSONPResponse{
-			JSONResponse: JSONResponse{
-				Code:   code,
-				Errors: make([]*Error, 0, len(errs)),
-			},
-			Callback: callbackKey,
-		}
-	)
+	r := &JSONPResponse{
+		JSONResponse: JSONResponse{
+			Code:   code,
+			Errors: make([]*Error, 0, len(errs)),
+		},
+		Callback: callbackKey,
+	}
 
 	for _, err := range errs {
 		r.appendErr(err)
@@ -387,8 +382,8 @@ func NewJSONPErrorResponse(callbackKey string, code int, errs ...interface{}) *J
 
 // JSONPResponse is the default standard api response
 type JSONPResponse struct {
-	JSONResponse
 	Callback string `json:"-"`
+	JSONResponse
 }
 
 // WriteToCtx writes the response to a ResponseWriter

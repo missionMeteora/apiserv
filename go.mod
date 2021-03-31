@@ -1,9 +1,9 @@
 module github.com/missionMeteora/apiserv
 
-go 1.13
+go 1.15
 
 require (
-	github.com/PathDNA/ptk v0.0.0-20190218195907-c6fdbb4829ec
+	github.com/OneOfOne/otk v0.0.0-20210301210410-dea509890696
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751 // indirect
 	github.com/alecthomas/units v0.0.0-20190924025748-f65c72e2690d // indirect
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible

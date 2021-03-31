@@ -1,18 +1,15 @@
 package apiserv
 
 import (
+	"encoding/json"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/PathDNA/ptk"
 )
 
-var (
-	nukeCookieDate = time.Date(1991, time.August, 6, 0, 0, 0, 0, time.UTC)
-)
+var nukeCookieDate = time.Date(1991, time.August, 6, 0, 0, 0, 0, time.UTC)
 
 // FromHTTPHandler returns a Handler from an http.Handler.
 func FromHTTPHandler(h http.Handler) Handler {
@@ -41,7 +38,7 @@ func StaticDirStd(prefix, dir string, allowListing bool) Handler {
 // StaticDir is a shorthand for StaticDirWithLimit(dir, paramName, -1).
 func StaticDir(dir, paramName string) Handler {
 	return StaticDirStd("", dir, false)
-	//return StaticDirWithLimit(dir, paramName, -1)
+	// return StaticDirWithLimit(dir, paramName, -1)
 }
 
 // StaticDirWithLimit returns a handler that handles serving static files.
@@ -148,7 +145,21 @@ func AllowCORS(methods, headers, origins []string, groups ...Group) Handler {
 	return fn
 }
 
-type M = ptk.M
+type M map[string]interface{}
+
+// ToJSON returns a string json representation of M, mostly for debugging.
+func (m M) ToJSON(indent bool) string {
+	if len(m) == 0 {
+		return "{}"
+	}
+	var j []byte
+	if indent {
+		j, _ = json.MarshalIndent(m, "", "\t")
+	} else {
+		j, _ = json.Marshal(m)
+	}
+	return string(j)
+}
 
 // MultiError handles returning multiple errors.
 type MultiError []error

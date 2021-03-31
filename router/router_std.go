@@ -1,3 +1,4 @@
+//go:build !fasthttp
 // +build !fasthttp
 
 package router
@@ -24,7 +25,7 @@ func DefaultNotFoundHandler(w http.ResponseWriter, req *http.Request, _ Params) 
 	http.Error(w, "404 page not found", http.StatusNotFound)
 }
 
-// ServerHTTP implements http.Handler
+// ServeHTTP implements http.Handler
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if !r.opts.NoCatchPanics && r.PanicHandler != nil {
 		defer func() {
