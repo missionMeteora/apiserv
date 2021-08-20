@@ -443,6 +443,10 @@ func putCtx(ctx *Context) {
 		g.Reset()
 	}
 
+	// trying to fix a race in api
+	if true {
+		return
+	}
 	m := ctx.data
 
 	// this looks like a bad idea, but it's an optimization in go 1.11, minor perf hit on 1.10
