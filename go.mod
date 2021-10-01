@@ -12,7 +12,8 @@ require (
 	github.com/missionMeteora/toolkit v0.0.0-20170713173850-88364e3ef8cc
 	github.com/stretchr/testify v1.6.1 // indirect
 	github.com/valyala/fasthttp v1.15.1
-	golang.org/x/crypto v0.0.0-20200220183623-bac4c82f6975
-	golang.org/x/net v0.0.0-20200602114024-627f9648deb9
+	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
+	golang.org/x/net v0.0.0-20210929193557-e81a3d93ecf6
+	golang.org/x/text v0.3.7 // indirect
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 )
