@@ -1,7 +1,6 @@
 package apiserv
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -15,6 +14,7 @@ import (
 	"time"
 
 	"github.com/missionMeteora/apiserv/router"
+	"github.com/pquerna/ffjson/ffjson"
 )
 
 var (
@@ -131,7 +131,7 @@ func (ctx *Context) CloseBody() error {
 // BindJSON parses the request's body as json, and closes the body.
 // Note that unlike gin.Context.Bind, this does NOT verify the fields using special tags.
 func (ctx *Context) BindJSON(out interface{}) error {
-	err := json.NewDecoder(ctx).Decode(out)
+	err := ffjson.NewDecoder().DecodeReader(ctx, out)
 	ctx.CloseBody()
 	return err
 }
@@ -161,7 +161,7 @@ func (ctx *Context) BindJSONP(val interface{}) (cb string, err error) {
 		return
 	}
 
-	if err = json.Unmarshal([]byte(data), val); err != nil {
+	if err = ffjson.Unmarshal([]byte(data), val); err != nil {
 		return
 	}
 
@@ -192,11 +192,11 @@ func (ctx *Context) JSON(code int, indent bool, v interface{}) error {
 	ctx.done = true
 	ctx.SetContentType(MimeJSON)
 
-	enc := json.NewEncoder(ctx)
+	enc := ffjson.NewEncoder(ctx)
 
-	if indent {
-		enc.SetIndent("", "\t")
-	}
+	// if indent { // not supported with ffjson
+	// 	enc.SetIndent("", "\t")
+	// }
 
 	if code > 0 {
 		ctx.WriteHeader(code)
@@ -220,11 +220,12 @@ func (ctx *Context) JSONP(code int, callbackKey string, v interface{}) (err erro
 	}
 
 	var b []byte
-	if b, err = json.Marshal(v); err != nil {
+	if b, err = ffjson.Marshal(v); err != nil {
 		return
 	}
 
 	_, err = fmt.Fprintf(ctx, "%s(%s);", callbackKey, string(b))
+	ffjson.Pool(b)
 	return
 }
 
@@ -355,10 +356,11 @@ func (ctx *Context) SetCookie(name string, value interface{}, domain string, for
 		encValue = s
 	} else {
 		var j []byte
-		if j, err = json.Marshal(value); err != nil {
+		if j, err = ffjson.Marshal(value); err != nil {
 			return
 		}
 		encValue = string(j)
+		ffjson.Pool(j)
 	}
 
 	cookie := &http.Cookie{
@@ -418,7 +420,7 @@ func (ctx *Context) GetCookieValue(name string, valDst interface{}) error {
 		return sc.Decode(name, c.Value, valDst)
 	}
 
-	return json.Unmarshal([]byte(c.Value), valDst)
+	return ffjson.Unmarshal([]byte(c.Value), valDst)
 }
 
 var ctxPool = sync.Pool{

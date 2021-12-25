@@ -11,6 +11,7 @@ import (
 
 	"github.com/OneOfOne/otk"
 	tkErrors "github.com/missionMeteora/toolkit/errors"
+	"github.com/pquerna/ffjson/ffjson"
 )
 
 // Common responses
@@ -63,7 +64,7 @@ func ReadJSONResponse(rc io.ReadCloser, dataValue interface{}) (r *JSONResponse,
 		Data: dataValue,
 	}
 
-	if err = json.NewDecoder(rc).Decode(r); err != nil {
+	if err = ffjson.NewDecoder().DecodeReader(rc, r); err != nil {
 		return
 	}
 

@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/pquerna/ffjson/ffjson"
 )
 
 var nukeCookieDate = time.Date(1991, time.August, 6, 0, 0, 0, 0, time.UTC)
@@ -156,9 +158,13 @@ func (m M) ToJSON(indent bool) string {
 	if indent {
 		j, _ = json.MarshalIndent(m, "", "\t")
 	} else {
-		j, _ = json.Marshal(m)
+		j, _ = ffjson.Marshal(m)
 	}
-	return string(j)
+	s := string(j)
+	if len(j) > 0 {
+		ffjson.Pool(j)
+	}
+	return s
 }
 
 // MultiError handles returning multiple errors.

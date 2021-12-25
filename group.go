@@ -83,10 +83,7 @@ func (g *group) DELETE(path string, handlers ...Handler) error {
 }
 
 func (g *group) Static(path, localPath string, allowListing bool) error {
-	if strings.HasSuffix(path, "/") { // make sure the path doesn't end in / or StaticDirStd will break
-		path = strings.TrimSuffix(path, "/")
-	}
-
+	path = strings.TrimSuffix(path, "/")
 	return g.AddRoute(http.MethodGet, joinPath(path, "*fp"), StaticDirStd(path, localPath, allowListing))
 }
 
