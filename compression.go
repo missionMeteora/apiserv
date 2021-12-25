@@ -133,6 +133,9 @@ func (g *gzRW) Flush() {
 
 func (g *gzRW) Reset() {
 	g.gw.Close()
+	if hf, ok := g.ResponseWriter.(http.Flusher); ok {
+		hf.Flush()
+	}
 	g.gw.Reset(nil)
 	g.ResponseWriter = nil
 	gzpools[g.level].Put(g)
