@@ -10,7 +10,6 @@ require (
 	github.com/gorilla/securecookie v1.1.1
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/missionMeteora/toolkit v0.0.0-20170713173850-88364e3ef8cc
-	github.com/pquerna/ffjson v0.0.0-20190930134022-aa0246cd15f7 // indirect
 	github.com/stretchr/testify v1.6.1 // indirect
 	github.com/valyala/fasthttp v1.15.1
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519

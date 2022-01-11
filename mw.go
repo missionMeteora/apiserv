@@ -2,6 +2,7 @@ package apiserv
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -10,7 +11,6 @@ import (
 	"time"
 
 	"github.com/gorilla/securecookie"
-	"github.com/pquerna/ffjson/ffjson"
 )
 
 // LogRequests is a request logger middleware.
@@ -33,7 +33,7 @@ func LogRequests(logJSONRequests bool) Handler {
 				io.Copy(&buf, req.Body)
 				req.Body.Close()
 				req.Body = ioutil.NopCloser(&buf)
-				j, _ := ffjson.Marshal(req.Header)
+				j, _ := json.Marshal(req.Header)
 				if ln := buf.Len(); ln > 0 {
 					switch buf.Bytes()[0] {
 					case '[', '{', 'n': // [], {} and nullable
@@ -41,9 +41,6 @@ func LogRequests(logJSONRequests bool) Handler {
 					default:
 						extra = fmt.Sprintf("\n\tHeaders: %s\n\tRequest (%d): <binary>", j, buf.Len())
 					}
-				}
-				if len(j) > 0 {
-					ffjson.Pool(j)
 				}
 			}
 		}

@@ -2,6 +2,7 @@ package sse
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -10,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/missionMeteora/apiserv"
-	"github.com/pquerna/ffjson/ffjson"
 )
 
 var (
@@ -143,7 +143,7 @@ func makeData(id, evt string, data interface{}) ([]byte, error) {
 		}
 
 	default:
-		v, err := ffjson.Marshal(data)
+		v, err := json.Marshal(data)
 		if err != nil {
 			return nil, err
 		}
@@ -151,7 +151,6 @@ func makeData(id, evt string, data interface{}) ([]byte, error) {
 		buf.Write(dataBytes)
 		buf.Write(v)
 		buf.Write(nl)
-		ffjson.Pool(v)
 	}
 
 	buf.Write(nl)
