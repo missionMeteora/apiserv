@@ -1,12 +1,14 @@
 package apiserv
 
 import (
-	"encoding/json"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/bytedance/sonic"
+	"github.com/bytedance/sonic/encoder"
 )
 
 var nukeCookieDate = time.Date(1991, time.August, 6, 0, 0, 0, 0, time.UTC)
@@ -153,10 +155,11 @@ func (m M) ToJSON(indent bool) string {
 		return "{}"
 	}
 	var j []byte
+
 	if indent {
-		j, _ = json.MarshalIndent(m, "", "\t")
+		j, _ = encoder.EncodeIndented(m, "", "\t", 0)
 	} else {
-		j, _ = json.Marshal(m)
+		j, _ = sonic.Marshal(m)
 	}
 	return string(j)
 }

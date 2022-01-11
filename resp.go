@@ -9,8 +9,9 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/OneOfOne/otk"
+	"github.com/bytedance/sonic/encoder"
 	tkErrors "github.com/missionMeteora/toolkit/errors"
+	"go.oneofone.dev/otk"
 )
 
 // Common responses
@@ -243,7 +244,7 @@ type Error struct {
 }
 
 func (e *Error) Error() string {
-	j, _ := json.MarshalIndent(e, "", "\t")
+	j, _ := encoder.EncodeIndented(e, "", "\t", 0)
 	return string(j)
 }
 

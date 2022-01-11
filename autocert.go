@@ -63,8 +63,8 @@ func NewAutoCertHosts(hosts ...string) *AutoCertHosts {
 }
 
 type AutoCertHosts struct {
-	m   map[string]struct{}
 	mux sync.RWMutex
+	m   map[string]struct{}
 }
 
 func (a *AutoCertHosts) Set(hosts ...string) {

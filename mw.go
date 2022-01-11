@@ -2,7 +2,6 @@ package apiserv
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -10,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/bytedance/sonic"
 	"github.com/gorilla/securecookie"
 )
 
@@ -33,7 +33,7 @@ func LogRequests(logJSONRequests bool) Handler {
 				io.Copy(&buf, req.Body)
 				req.Body.Close()
 				req.Body = ioutil.NopCloser(&buf)
-				j, _ := json.Marshal(req.Header)
+				j, _ := sonic.Marshal(req.Header)
 				if ln := buf.Len(); ln > 0 {
 					switch buf.Bytes()[0] {
 					case '[', '{', 'n': // [], {} and nullable

@@ -2,7 +2,6 @@ package sse
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +9,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/bytedance/sonic"
 	"github.com/missionMeteora/apiserv"
 )
 
@@ -143,7 +143,7 @@ func makeData(id, evt string, data interface{}) ([]byte, error) {
 		}
 
 	default:
-		v, err := json.Marshal(data)
+		v, err := sonic.Marshal(data)
 		if err != nil {
 			return nil, err
 		}
