@@ -3,7 +3,7 @@ package apiutils
 import (
 	"net/http"
 
-	jwtReq "github.com/dgrijalva/jwt-go/request"
+	jwtReq "github.com/golang-jwt/jwt/request"
 )
 
 // CookieExtractor implements an Extractor to use auth token from cookies

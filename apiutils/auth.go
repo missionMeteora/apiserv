@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	jwt "github.com/dgrijalva/jwt-go"
-	jwtReq "github.com/dgrijalva/jwt-go/request"
+	jwt "github.com/golang-jwt/jwt"
+	jwtReq "github.com/golang-jwt/jwt/request"
 	"github.com/missionMeteora/apiserv"
 )
 

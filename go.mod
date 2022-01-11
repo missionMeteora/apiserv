@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/bytedance/sonic v1.0.0
-	github.com/dgrijalva/jwt-go v3.2.0+incompatible
+	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/gorilla/securecookie v1.1.1
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/missionMeteora/toolkit v0.0.0-20170713173850-88364e3ef8cc
