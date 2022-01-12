@@ -1,4 +1,4 @@
-//+go:build arm64
+//go:build !amd64
 
 package internal
 
@@ -7,7 +7,7 @@ import (
 	"log"
 	"reflect"
 
-	"github.com/OneOfOne/otk"
+	"go.oneofone.dev/otk"
 )
 
 func init() {
