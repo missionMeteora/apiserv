@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bytedance/sonic"
+	"github.com/missionMeteora/apiserv/internal"
 	"github.com/missionMeteora/apiserv/router"
 )
 
@@ -162,7 +162,7 @@ func (ctx *Context) BindJSONP(val interface{}) (cb string, err error) {
 		return
 	}
 
-	if err = sonic.UnmarshalString(data, val); err != nil {
+	if err = internal.UnmarshalString(data, val); err != nil {
 		return
 	}
 
@@ -221,7 +221,7 @@ func (ctx *Context) JSONP(code int, callbackKey string, v interface{}) (err erro
 	}
 
 	var b []byte
-	if b, err = sonic.Marshal(v); err != nil {
+	if b, err = internal.Marshal(v); err != nil {
 		return
 	}
 
@@ -356,7 +356,7 @@ func (ctx *Context) SetCookie(name string, value interface{}, domain string, for
 		encValue = s
 	} else {
 		var j []byte
-		if j, err = sonic.Marshal(value); err != nil {
+		if j, err = internal.Marshal(value); err != nil {
 			return
 		}
 		encValue = string(j)
@@ -419,7 +419,7 @@ func (ctx *Context) GetCookieValue(name string, valDst interface{}) error {
 		return sc.Decode(name, c.Value, valDst)
 	}
 
-	return sonic.UnmarshalString(c.Value, valDst)
+	return internal.UnmarshalString(c.Value, valDst)
 }
 
 var ctxPool = sync.Pool{

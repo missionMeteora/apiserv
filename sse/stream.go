@@ -9,8 +9,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/bytedance/sonic"
 	"github.com/missionMeteora/apiserv"
+	"github.com/missionMeteora/apiserv/internal"
 )
 
 var (
@@ -143,7 +143,7 @@ func makeData(id, evt string, data interface{}) ([]byte, error) {
 		}
 
 	default:
-		v, err := sonic.Marshal(data)
+		v, err := internal.Marshal(data)
 		if err != nil {
 			return nil, err
 		}

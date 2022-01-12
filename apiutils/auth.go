@@ -156,7 +156,7 @@ func (a *Auth) SignIn(ctx *apiserv.Context) apiserv.Response {
 
 	signed, err := a.signAndSetHeaders(ctx, Token{Token: tok}, key)
 	if err != nil {
-		// only reason this would return an error is if there's something wrong with sonic.Marshal
+		// only reason this would return an error is if there's something wrong with internal.Marshal
 		return apiserv.NewJSONErrorResponse(http.StatusInternalServerError, err)
 	}
 
@@ -171,7 +171,7 @@ func (a *Auth) SignIn(ctx *apiserv.Context) apiserv.Response {
 
 func (a *Auth) signAndSetHeaders(ctx *apiserv.Context, tok Token, key interface{}) (signedString string, err error) {
 	if signedString, err = tok.SignedString(key); err != nil {
-		// only reason this would return an error is if there's something wrong with sonic.Marshal
+		// only reason this would return an error is if there's something wrong with internal.Marshal
 		return
 	}
 

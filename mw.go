@@ -9,8 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/bytedance/sonic"
 	"github.com/gorilla/securecookie"
+	"github.com/missionMeteora/apiserv/internal"
 )
 
 // LogRequests is a request logger middleware.
@@ -33,7 +33,7 @@ func LogRequests(logJSONRequests bool) Handler {
 				io.Copy(&buf, req.Body)
 				req.Body.Close()
 				req.Body = ioutil.NopCloser(&buf)
-				j, _ := sonic.Marshal(req.Header)
+				j, _ := internal.Marshal(req.Header)
 				if ln := buf.Len(); ln > 0 {
 					switch buf.Bytes()[0] {
 					case '[', '{', 'n': // [], {} and nullable

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bytedance/sonic"
 	"github.com/bytedance/sonic/encoder"
+	"github.com/missionMeteora/apiserv/internal"
 )
 
 var nukeCookieDate = time.Date(1991, time.August, 6, 0, 0, 0, 0, time.UTC)
@@ -159,7 +159,7 @@ func (m M) ToJSON(indent bool) string {
 	if indent {
 		j, _ = encoder.EncodeIndented(m, "", "\t", 0)
 	} else {
-		j, _ = sonic.Marshal(m)
+		j, _ = internal.Marshal(m)
 	}
 	return string(j)
 }
