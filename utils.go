@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bytedance/sonic/encoder"
 	"github.com/missionMeteora/apiserv/internal"
 )
 
@@ -157,7 +156,7 @@ func (m M) ToJSON(indent bool) string {
 	var j []byte
 
 	if indent {
-		j, _ = encoder.EncodeIndented(m, "", "\t", 0)
+		j, _ = internal.MarshalIndent(m)
 	} else {
 		j, _ = internal.Marshal(m)
 	}

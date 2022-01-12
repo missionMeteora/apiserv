@@ -16,6 +16,10 @@ func Marshal(v interface{}) ([]byte, error) {
 	return json.Marshal(v)
 }
 
+func MarshalIndent(v interface{}) ([]byte, error) {
+	return json.MarshalIndent(v, "", "\t")
+}
+
 func Unmarshal(buf []byte, val interface{}) error {
 	return json.Unmarshal(buf, val)
 }

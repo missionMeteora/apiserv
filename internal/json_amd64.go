@@ -6,10 +6,15 @@ import (
 	"reflect"
 
 	"github.com/bytedance/sonic"
+	"github.com/bytedance/sonic/encoder"
 )
 
 func Marshal(v interface{}) ([]byte, error) {
 	return sonic.Marshal(v)
+}
+
+func MarshalIndent(v interface{}) ([]byte, error) {
+	return encoder.EncodeIndented(v, "", "\t", 0)
 }
 
 func Unmarshal(buf []byte, val interface{}) error {

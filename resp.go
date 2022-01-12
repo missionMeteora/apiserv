@@ -9,7 +9,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/bytedance/sonic/encoder"
+	"github.com/missionMeteora/apiserv/internal"
 	tkErrors "github.com/missionMeteora/toolkit/errors"
 	"go.oneofone.dev/otk"
 )
@@ -244,7 +244,7 @@ type Error struct {
 }
 
 func (e *Error) Error() string {
-	j, _ := encoder.EncodeIndented(e, "", "\t", 0)
+	j, _ := internal.MarshalIndent(e)
 	return string(j)
 }
 
