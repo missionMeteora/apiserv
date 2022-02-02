@@ -24,6 +24,7 @@ var (
 )
 
 type node struct {
+	g     string
 	h     Handler
 	parts []nodePart
 }
@@ -75,9 +76,27 @@ func New(opts *Options) *Router {
 	return &r
 }
 
+func (r *Router) GetRoutes() [][3]string {
+	rms := r.getAllMaps()
+	routes := make([][3]string, 0, len(rms))
+	for method, rm := range rms {
+		for p, ns := range rm {
+			base := p
+			for _, n := range ns {
+				route := base
+				for _, np := range n.parts {
+					route += "/" + string(np)
+				}
+				routes = append(routes, [3]string{n.g, method, route})
+			}
+		}
+	}
+	return routes
+}
+
 // AddRoute adds a Handler to the specific method and route.
 // Calling AddRoute after starting the http server is racy and not supported.
-func (r *Router) AddRoute(method, route string, h Handler) error {
+func (r *Router) AddRoute(group, method, route string, h Handler) error {
 	p, rest, num, stars := splitPathToParts(route)
 	if stars > 1 {
 		if r.opts.NoPanicOnInvalidAddRoute {
@@ -98,33 +117,13 @@ func (r *Router) AddRoute(method, route string, h Handler) error {
 	}
 
 	m := r.getMap(method, true)
-	m.append(p, node{h: h, parts: rest})
+	m.append(p, node{g: group, h: h, parts: rest})
 
 	if num > r.maxParams {
 		r.maxParams = num
 	}
 
 	return nil
-}
-
-// GET is an alias for AddRoute("GET", path, h)
-func (r *Router) GET(path string, h Handler) error {
-	return r.AddRoute(http.MethodGet, path, h)
-}
-
-// POST is an alias for AddRoute("POST", path, h)
-func (r *Router) POST(path string, h Handler) error {
-	return r.AddRoute(http.MethodPost, path, h)
-}
-
-// PUT is an alias for AddRoute("PUT", path, h)
-func (r *Router) PUT(path string, h Handler) error {
-	return r.AddRoute(http.MethodPut, path, h)
-}
-
-// DELETE is an alias for AddRoute("DELETE", path, h)
-func (r *Router) DELETE(path string, h Handler) error {
-	return r.AddRoute(http.MethodDelete, path, h)
 }
 
 // Match matches a method and path to a handler.
@@ -188,6 +187,33 @@ func (r *Router) match(method, path string) (handler Handler, params *paramsWrap
 	})
 
 	return
+}
+
+func (r *Router) getAllMaps() map[string]routeMap {
+	out := make(map[string]routeMap)
+	for i, rm := range &r.methods {
+		switch i {
+		case 0:
+			out[http.MethodGet] = rm
+		case 1:
+			out[http.MethodHead] = rm
+		case 2:
+			out[http.MethodPost] = rm
+		case 3:
+			out[http.MethodPut] = rm
+		case 4:
+			out[http.MethodPatch] = rm
+		case 5:
+			out[http.MethodDelete] = rm
+		case 6:
+			out[http.MethodConnect] = rm
+		case 7:
+			out[http.MethodOptions] = rm
+		case 8:
+			out[http.MethodTrace] = rm
+		}
+	}
+	return out
 }
 
 func (r *Router) getMap(method string, create bool) routeMap {

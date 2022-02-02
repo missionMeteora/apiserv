@@ -18,7 +18,10 @@ type Group interface {
 	Use(mw ...Handler)
 
 	// Group returns a sub-group starting at the specified path with this group's middlewares + any other ones.
-	Group(path string, mw ...Handler) Group
+	Group(name, path string, mw ...Handler) Group
+
+	// Routes returns the current routes set.
+	Routes() [][3]string
 
 	// AddRoute adds a handler (or more) to the specific method and path
 	// it is NOT safe to call this once you call one of the run functions
@@ -43,6 +46,7 @@ type Group interface {
 
 type group struct {
 	s    *Server
+	nm   string
 	path string
 	mw   []Handler
 }
@@ -52,6 +56,12 @@ func (g *group) Use(mw ...Handler) {
 	g.mw = append(g.mw, mw...)
 }
 
+// Routes returns the current routes set.
+// Each route is returned in the order of group name, method, path.
+func (g *group) Routes() [][3]string {
+	return g.s.r.GetRoutes()
+}
+
 // AddRoute adds a handler (or more) to the specific method and path
 // it is NOT safe to call this once you call one of the run functions
 func (g *group) AddRoute(method, path string, handlers ...Handler) error {
@@ -59,7 +69,7 @@ func (g *group) AddRoute(method, path string, handlers ...Handler) error {
 		hc: handlers,
 		g:  g,
 	}
-	return g.s.r.AddRoute(method, joinPath(g.path, path), ghc.Serve)
+	return g.s.r.AddRoute(g.nm, method, joinPath(g.path, path), ghc.Serve)
 }
 
 // GET is an alias for AddRoute("GET", path, handlers...).
@@ -96,8 +106,9 @@ func (g *group) StaticFile(path, localPath string) error {
 }
 
 // group returns a sub-handler group based on the current group's middleware
-func (g *group) Group(path string, mw ...Handler) Group {
+func (g *group) Group(name, path string, mw ...Handler) Group {
 	return &group{
+		nm:   name,
 		mw:   append(g.mw[:len(g.mw):len(g.mw)], mw...),
 		path: joinPath(g.path, path),
 		s:    g.s,
