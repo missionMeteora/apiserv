@@ -1,13 +1,19 @@
-//go:build amd64
+//go:build amd64 && !go1.18
+// +build amd64,!go1.18
 
 package internal
 
 import (
+	"log"
 	"reflect"
 
 	"github.com/bytedance/sonic"
 	"github.com/bytedance/sonic/encoder"
 )
+
+func init() {
+	log.Printf("apiserv: running with sonic json")
+}
 
 func Marshal(v interface{}) ([]byte, error) {
 	return sonic.Marshal(v)

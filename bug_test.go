@@ -11,7 +11,7 @@ func TestIssue12(t *testing.T) {
 	defer s.Shutdown(0)
 
 	s.Use(LogRequests(true))
-	g := s.Group("", func(ctx *Context) Response {
+	g := s.Group("", "", func(ctx *Context) Response {
 		ctx.Set("mw", true)
 		return nil
 	})

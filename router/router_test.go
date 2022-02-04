@@ -22,8 +22,8 @@ func TestRouter(t *testing.T) {
 func TestRouterStar(t *testing.T) {
 	r := New(nil)
 	fn := func(_ http.ResponseWriter, req *http.Request, p Params) {}
-	_ = r.GET("/home", nil)
-	_ = r.GET("/home/*path", fn)
+	_ = r.AddRoute("", "GET", "/home", nil)
+	_ = r.AddRoute("", "GET", "/home/*path", fn)
 	if h, p := r.Match("GET", "/home"); h != nil || len(p) != 0 {
 		t.Fatalf("expected a 0 match, got %v %v", h, len(p))
 	}
@@ -33,7 +33,6 @@ func TestRouterStar(t *testing.T) {
 	if h, p := r.Match("GET", "/home/file/file2/report.json"); h == nil || len(p) != 1 || p.Get("path") != "file/file2/report.json" {
 		t.Fatalf("expected a 1 match, got %v %v", h, p)
 	}
-
 }
 
 func BenchmarkRouter5Params(b *testing.B) {
@@ -75,8 +74,8 @@ func buildMeteoraAPIRouter(l testing.TB, print bool) (r *Router) {
 				l.Logf("[%s] %s %q", req.Method, ep, p)
 			}
 		}
-		r.GET(ep, fn)
-		r.AddRoute("PATCH", ep, fn)
+		r.AddRoute("", "GET", ep, fn)
+		r.AddRoute("", "PATCH", ep, fn)
 	}
 	r.NotFoundHandler = func(_ http.ResponseWriter, req *http.Request, _ Params) {
 		panic(req.URL.String())

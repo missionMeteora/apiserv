@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"go.oneofone.dev/otk"
 )
 
 var testData = []struct {
@@ -54,6 +56,19 @@ func newServerAndWait(t *testing.T, addr string) *Server {
 	}
 }
 
+func cmpData(a, b interface{}) bool {
+	av, bv := a, b
+	if ab, ok := a.(*otk.Buffer); ok {
+		av = nil
+		json.Unmarshal(ab.Bytes(), &av)
+	}
+	if bb, ok := b.(*otk.Buffer); ok {
+		bv = nil
+		json.Unmarshal(bb.Bytes(), &bv)
+	}
+	return av == bv
+}
+
 func TestServer(t *testing.T) {
 	var srv *Server
 
@@ -91,7 +106,7 @@ func TestServer(t *testing.T) {
 
 	srv.StaticFile("/README.md", "./router/README.md")
 
-	srv.Group("/mw", func(ctx *Context) Response {
+	srv.Group("", "/mw", func(ctx *Context) Response {
 		ctx.Set("data", "test")
 		return nil
 	}).GET("/sub", func(ctx *Context) Response {
@@ -119,8 +134,8 @@ func TestServer(t *testing.T) {
 				t.Fatal(td.path, err)
 			}
 
-			if resp.Code != td.Code || resp.Data != td.Data {
-				t.Fatalf("expected (%s) %+v, got %+v", td.path, td.JSONResponse, resp)
+			if resp.Code != td.Code || !cmpData(resp.Data, td.Data) {
+				t.Fatalf("expected (%s) (%v) %#+v, got (%v) %#+v", td.path, td.Code, td.Data, resp.Code, resp.Data)
 			}
 
 			if len(resp.Errors) > 0 {
@@ -129,7 +144,7 @@ func TestServer(t *testing.T) {
 				}
 
 				for i := range resp.Errors {
-					if re, te := resp.Errors[i], td.Errors[i]; *re != *te {
+					if re, te := resp.Errors[i], td.Errors[i]; re != te {
 						t.Fatalf("expected %+v, got %+v", te, re)
 					}
 				}

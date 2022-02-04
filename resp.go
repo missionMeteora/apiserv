@@ -14,6 +14,10 @@ import (
 	"go.oneofone.dev/otk"
 )
 
+var EnableCacheResponse bool
+
+var bufPool otk.BufferPool
+
 // Common responses
 var (
 	RespMethodNotAllowed Response = NewJSONErrorResponse(http.StatusMethodNotAllowed)
@@ -48,9 +52,26 @@ type Response interface {
 
 // NewJSONResponse returns a new success response (code 200) with the specific data
 func NewJSONResponse(data interface{}) *JSONResponse {
+	if !EnableCacheResponse {
+		return &JSONResponse{
+			Code:    http.StatusOK,
+			Success: true,
+			Data:    data,
+		}
+	}
+
+	bp := bufPool.Get()
+
+	if err := json.NewEncoder(bp).Encode(data); err != nil {
+		return &JSONResponse{
+			Code:   http.StatusInternalServerError,
+			Errors: []Error{{Message: err.Error()}},
+		}
+	}
+
 	return &JSONResponse{
 		Code: http.StatusOK,
-		Data: data,
+		Data: bp,
 	}
 }
 
@@ -74,7 +95,7 @@ func ReadJSONResponse(rc io.ReadCloser, dataValue interface{}) (r *JSONResponse,
 
 	var me MultiError
 	for _, v := range r.Errors {
-		me.Push(v)
+		me.Push(&v)
 	}
 
 	if err = me.Err(); err == nil {
@@ -94,7 +115,7 @@ func JSONRequest(method, url string, reqData, respData interface{}) (err error) 
 // JSONResponse is the default standard api response
 type JSONResponse struct {
 	Data    interface{} `json:"data,omitempty"`
-	Errors  []*Error    `json:"errors,omitempty"`
+	Errors  []Error     `json:"errors,omitempty"`
 	Code    int         `json:"code"`
 	Success bool        `json:"success"`
 	Indent  bool        `json:"-"`
@@ -116,7 +137,10 @@ func (r *JSONResponse) WriteToCtx(ctx *Context) error {
 	}
 
 	r.Success = r.Code >= http.StatusOK && r.Code < http.StatusBadRequest
-
+	if bp, ok := r.Data.(*otk.Buffer); ok {
+		defer bufPool.Put(bp)
+		r.Data = json.RawMessage(bp.Bytes())
+	}
 	return ctx.JSON(r.Code, r.Indent, r)
 }
 
@@ -190,7 +214,7 @@ func NewJSONErrorResponse(code int, errs ...interface{}) (r *JSONResponse) {
 
 	r = &JSONResponse{
 		Code:   code,
-		Errors: make([]*Error, 0, len(errs)),
+		Errors: make([]Error, 0, len(errs)),
 	}
 
 	for _, err := range errs {
@@ -208,7 +232,8 @@ func (r *JSONResponse) ErrorList() *tkErrors.ErrorList {
 	}
 	var el tkErrors.ErrorList
 	for _, err := range r.Errors {
-		el.Push(err)
+		err := err
+		el.Push(&err)
 	}
 	return &el
 }
@@ -216,13 +241,13 @@ func (r *JSONResponse) ErrorList() *tkErrors.ErrorList {
 func (r *JSONResponse) appendErr(err interface{}) {
 	switch v := err.(type) {
 	case Error:
-		r.Errors = append(r.Errors, &v)
-	case *Error:
 		r.Errors = append(r.Errors, v)
+	case *Error:
+		r.Errors = append(r.Errors, *v)
 	case string:
-		r.Errors = append(r.Errors, &Error{Message: v})
+		r.Errors = append(r.Errors, Error{Message: v})
 	case []byte:
-		r.Errors = append(r.Errors, &Error{Message: string(v)})
+		r.Errors = append(r.Errors, Error{Message: string(v)})
 	case *JSONResponse:
 		r.Errors = append(r.Errors, v.Errors...)
 	case MultiError:
@@ -230,7 +255,7 @@ func (r *JSONResponse) appendErr(err interface{}) {
 			r.appendErr(err)
 		}
 	case error:
-		r.Errors = append(r.Errors, &Error{Message: v.Error()})
+		r.Errors = append(r.Errors, Error{Message: v.Error()})
 	default:
 		log.Panicf("unsupported error type (%T): %v", v, v)
 	}
@@ -369,7 +394,7 @@ func NewJSONPErrorResponse(callbackKey string, code int, errs ...interface{}) *J
 	r := &JSONPResponse{
 		JSONResponse: JSONResponse{
 			Code:   code,
-			Errors: make([]*Error, 0, len(errs)),
+			Errors: make([]Error, 0, len(errs)),
 		},
 		Callback: callbackKey,
 	}

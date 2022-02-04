@@ -1,4 +1,5 @@
-//go:build !amd64
+//go:build !amd64 || go1.18
+// +build !amd64 go1.18
 
 package internal
 
@@ -11,7 +12,7 @@ import (
 )
 
 func init() {
-	log.Printf("WARNING: running with stdlib json on arm64")
+	log.Printf("apiserv: running with stdlib json")
 }
 
 func Marshal(v interface{}) ([]byte, error) {
