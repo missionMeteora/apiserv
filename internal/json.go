@@ -1,5 +1,5 @@
-//go:build !amd64 || go1.18
-// +build !amd64 go1.18
+//xgo:build !amd64 || go1.18
+// +xbuild !amd64 go1.18
 
 package internal
 

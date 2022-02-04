@@ -1,5 +1,7 @@
-//go:build amd64 && !go1.18
-// +build amd64,!go1.18
+//go:build ignore
+// +build ignore
+
+// amd64,!go1.18
 
 package internal
 
