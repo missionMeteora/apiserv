@@ -68,7 +68,10 @@ func fileExists(fn string) bool {
 
 func Gzip(level int) Handler {
 	return func(ctx *Context) Response {
-		ctx.EnableGzip(level)
+		if strings.Contains(ctx.ReqHeader().Get(acceptHeader), "gzip") {
+			ctx.EnableGzip(level)
+		}
+
 		return nil
 	}
 }
