@@ -12,7 +12,7 @@ func TestBugGithub3(t *testing.T) {
 			t.Fatalf(`expected "Personal/data/hi.txt", got "%s/%s/%s"`, p[0].Value, p[1].Value, p[2].Value)
 		}
 	})
-	h, p := r.Match("GET", "/api/files/Personal/data/hi.txt")
+	_, h, p := r.Match("GET", "/api/files/Personal/data/hi.txt")
 	if h == nil {
 		t.Fatal("couldn't find the handler")
 	}

@@ -1,19 +1,25 @@
 package router
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 )
+
+type OnRequestDone = func(ctx context.Context, group, method, uri string, duration time.Duration)
 
 // Options passed to the router
 type Options struct {
+	OnRequestDone
 	NoAutoCleanURL           bool // don't automatically clean URLs, not recommended
 	NoDefaultPanicHandler    bool // don't use the default panic handler
 	NoPanicOnInvalidAddRoute bool // don't panic on invalid routes, return an error instead
 	NoCatchPanics            bool // don't catch panics
 	NoAutoHeadToGet          bool // disable automatically handling HEAD requests
+	ProfileLabels            bool
 }
 
 var (
@@ -53,8 +59,8 @@ type Router struct {
 	MethodNotAllowedHandler Handler
 	PanicHandler            PanicHandler
 
-	maxParams int
 	opts      Options
+	maxParams int
 }
 
 // New returns a new Router
@@ -128,17 +134,17 @@ func (r *Router) AddRoute(group, method, route string, h Handler) error {
 
 // Match matches a method and path to a handler.
 // if METHOD == HEAD and there isn't a specific handler for it, it returns the GET handler for the path.
-func (r *Router) Match(method, path string) (handler Handler, params Params) {
-	h, p := r.match(method, path)
+func (r *Router) Match(method, path string) (group string, handler Handler, params Params) {
+	g, h, p := r.match(method, path)
 
 	if h == nil && method == http.MethodHead && !r.opts.NoAutoHeadToGet {
-		h, p = r.match(http.MethodGet, path)
+		g, h, p = r.match(http.MethodGet, path)
 	}
 
-	return h, p.Params()
+	return g, h, p.Params()
 }
 
-func (r *Router) match(method, path string) (handler Handler, params *paramsWrapper) {
+func (r *Router) match(method, path string) (group string, handler Handler, params *paramsWrapper) {
 	m := r.getMap(method, false)
 	var (
 		nn   []node
@@ -164,7 +170,7 @@ func (r *Router) match(method, path string) (handler Handler, params *paramsWrap
 	for _, n := range nn {
 		if len(n.parts) == nsep || n.hasStar() {
 			rn = n
-			handler = n.h
+			group, handler = n.g, n.h
 			break
 		}
 	}
