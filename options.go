@@ -84,3 +84,15 @@ func SetNoCatchPanics(enable bool) Option {
 		opt.RouterOptions.NoCatchPanics = enable
 	})
 }
+
+func SetProfileLabels(enable bool) Option {
+	return optionSetter(func(opt *Options) {
+		opt.RouterOptions.ProfileLabels = enable
+	})
+}
+
+func SetOnReqDone(fn router.OnRequestDone) Option {
+	return optionSetter(func(opt *Options) {
+		opt.RouterOptions.OnRequestDone = fn
+	})
+}

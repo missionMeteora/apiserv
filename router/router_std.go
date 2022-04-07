@@ -6,6 +6,8 @@ package router
 import (
 	"fmt"
 	"net/http"
+	"runtime/pprof"
+	"time"
 )
 
 // Handler is what handler looks like, duh?
@@ -27,6 +29,8 @@ func DefaultNotFoundHandler(w http.ResponseWriter, req *http.Request, _ Params) 
 
 // ServeHTTP implements http.Handler
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	start := time.Now()
+
 	if !r.opts.NoCatchPanics && r.PanicHandler != nil {
 		defer func() {
 			if v := recover(); v != nil {
@@ -48,9 +52,21 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		w, method = &headRW{ResponseWriter: w}, http.MethodGet
 	}
 
-	if h, p := r.match(method, pathNoQuery(u)); h != nil {
+	if g, h, p := r.match(method, pathNoQuery(u)); h != nil {
+		if r.opts.ProfileLabels {
+			labels := pprof.Labels("group", g, "method", req.Method, "uri", req.RequestURI)
+			ctx := pprof.WithLabels(req.Context(), labels)
+			pprof.SetGoroutineLabels(ctx)
+			req = req.WithContext(ctx)
+		}
+
 		h(w, req, p.Params())
 		r.putParams(p)
+
+		if r.opts.OnRequestDone != nil {
+			r.opts.OnRequestDone(req.Context(), g, method, u, time.Since(start))
+		}
+
 		return
 	}
 

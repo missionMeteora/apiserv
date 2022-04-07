@@ -93,13 +93,15 @@ func NewWithOpts(opts *Options) *Server {
 // Server is the main server
 type Server struct {
 	*group
-	r               *router.Router
+	r *router.Router
+
 	PanicHandler    func(ctx *Context, v interface{})
 	NotFoundHandler func(ctx *Context)
-	servers         []*http.Server
-	opts            Options
-	serversMux      sync.Mutex
-	closed          int32
+
+	servers    []*http.Server
+	opts       Options
+	serversMux sync.Mutex
+	closed     int32
 }
 
 // ServeHTTP allows using the server in custom scenarios that expects an http.Handler.

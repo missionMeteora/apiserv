@@ -24,13 +24,13 @@ func TestRouterStar(t *testing.T) {
 	fn := func(_ http.ResponseWriter, req *http.Request, p Params) {}
 	_ = r.AddRoute("", "GET", "/home", nil)
 	_ = r.AddRoute("", "GET", "/home/*path", fn)
-	if h, p := r.Match("GET", "/home"); h != nil || len(p) != 0 {
+	if _, h, p := r.Match("GET", "/home"); h != nil || len(p) != 0 {
 		t.Fatalf("expected a 0 match, got %v %v", h, len(p))
 	}
-	if h, p := r.Match("GET", "/home/file"); h == nil || len(p) != 1 || p.Get("path") != "file" {
+	if _, h, p := r.Match("GET", "/home/file"); h == nil || len(p) != 1 || p.Get("path") != "file" {
 		t.Fatalf("expected a 1 match, got %v %v", h, p)
 	}
-	if h, p := r.Match("GET", "/home/file/file2/report.json"); h == nil || len(p) != 1 || p.Get("path") != "file/file2/report.json" {
+	if _, h, p := r.Match("GET", "/home/file/file2/report.json"); h == nil || len(p) != 1 || p.Get("path") != "file/file2/report.json" {
 		t.Fatalf("expected a 1 match, got %v %v", h, p)
 	}
 }
