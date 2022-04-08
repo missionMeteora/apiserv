@@ -136,7 +136,7 @@ func (r *JSONResponse) WriteToCtx(ctx *Context) error {
 		return nil
 	}
 
-	r.Success = r.Code >= http.StatusOK && r.Code < http.StatusBadRequest
+	// r.Success = r.Code >= http.StatusOK && r.Code < http.StatusBadRequest
 	if bp, ok := r.Data.(*otk.Buffer); ok {
 		defer bufPool.Put(bp)
 		r.Data = json.RawMessage(bp.Bytes())
